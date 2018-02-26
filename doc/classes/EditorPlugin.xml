@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="EditorPlugin" inherits="Node" category="Core" version="3.0-stable">
+<class name="EditorPlugin" inherits="Node" category="Core" version="3.1-dev">
 	<brief_description>
 		Used by the editor to extend its functionality.
 	</brief_description>
@@ -12,6 +12,17 @@
 	<demos>
 	</demos>
 	<methods>
+		<method name="add_autoload_singleton">
+			<return type="void">
+			</return>
+			<argument index="0" name="name" type="String">
+			</argument>
+			<argument index="1" name="path" type="String">
+			</argument>
+			<description>
+				Add a script at [code]path[/code] to the Autoload list as [code]name[/code].
+			</description>
+		</method>
 		<method name="add_control_to_bottom_panel">
 			<return type="ToolButton">
 			</return>
@@ -265,6 +276,15 @@
 				Queue save the project's editor layout.
 			</description>
 		</method>
+		<method name="remove_autoload_singleton">
+			<return type="void">
+			</return>
+			<argument index="0" name="name" type="String">
+			</argument>
+			<description>
+				Remove an Autoload [code]name[/code] from the list.
+			</description>
+		</method>
 		<method name="remove_control_from_bottom_panel">
 			<return type="void">
 			</return>
@@ -272,6 +292,17 @@
 			</argument>
 			<description>
 				Remove the control from the bottom panel. Don't forget to call this if you added one, so the editor can remove it cleanly.
+			</description>
+		</method>
+		<method name="remove_control_from_container">
+			<return type="void">
+			</return>
+			<argument index="0" name="container" type="int" enum="EditorPlugin.CustomControlContainer">
+			</argument>
+			<argument index="1" name="control" type="Control">
+			</argument>
+			<description>
+				Remove the control from the specified container. Use it when cleaning up after adding a control with [method add_control_to_container]. Note that you can simply free the control if you won't use it anymore.
 			</description>
 		</method>
 		<method name="remove_control_from_docks">

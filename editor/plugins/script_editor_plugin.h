@@ -165,6 +165,7 @@ class ScriptEditor : public PanelContainer {
 	enum ScriptSortBy {
 		SORT_BY_NAME,
 		SORT_BY_PATH,
+		SORT_BY_NONE
 	};
 
 	enum ScriptListName {
@@ -198,6 +199,7 @@ class ScriptEditor : public PanelContainer {
 	VSplitContainer *list_split;
 	TabContainer *tab_container;
 	EditorFileDialog *file_dialog;
+	AcceptDialog *error_dialog;
 	ConfirmationDialog *erase_tab_confirm;
 	ScriptCreateDialog *script_create_dialog;
 	ScriptEditorDebugger *debugger;
@@ -227,8 +229,6 @@ class ScriptEditor : public PanelContainer {
 	Vector<ScriptHistory> history;
 	int history_pos;
 
-	Vector<String> previous_scripts;
-
 	EditorHelpIndex *help_index;
 
 	void _tab_changed(int p_which);
@@ -250,7 +250,9 @@ class ScriptEditor : public PanelContainer {
 	void _update_recent_scripts();
 	void _open_recent_script(int p_idx);
 
-	void _close_tab(int p_idx, bool p_save = true);
+	void _show_error_dialog(String p_path);
+
+	void _close_tab(int p_idx, bool p_save = true, bool p_history_back = true);
 
 	void _close_current_tab();
 	void _close_discard_current_tab(const String &p_str);

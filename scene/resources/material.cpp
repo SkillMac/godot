@@ -737,15 +737,18 @@ void SpatialMaterial::_update_shader() {
 		}
 	}
 
-	if (features[FEATURE_REFRACTION] && !flags[FLAG_UV1_USE_TRIPLANAR]) { //refraction not supported with triplanar
+	if (features[FEATURE_REFRACTION]) {
 
 		if (features[FEATURE_NORMAL_MAPPING]) {
 			code += "\tvec3 ref_normal = normalize( mix(NORMAL,TANGENT * NORMALMAP.x + BINORMAL * NORMALMAP.y + NORMAL * NORMALMAP.z,NORMALMAP_DEPTH) );\n";
 		} else {
 			code += "\tvec3 ref_normal = NORMAL;\n";
 		}
-
-		code += "\tvec2 ref_ofs = SCREEN_UV - ref_normal.xy * dot(texture(texture_refraction,base_uv),refraction_texture_channel) * refraction;\n";
+		if (flags[FLAG_UV1_USE_TRIPLANAR]) {
+			code += "\tvec2 ref_ofs = SCREEN_UV - ref_normal.xy * dot(triplanar_texture(texture_refraction,uv1_power_normal,uv1_triplanar_pos),refraction_texture_channel) * refraction;\n";
+		} else {
+			code += "\tvec2 ref_ofs = SCREEN_UV - ref_normal.xy * dot(texture(texture_refraction,base_uv),refraction_texture_channel) * refraction;\n";
+		}
 		code += "\tfloat ref_amount = 1.0 - albedo.a * albedo_tex.a;\n";
 		code += "\tEMISSION += textureLod(SCREEN_TEXTURE,ref_ofs,ROUGHNESS * 8.0).rgb * ref_amount;\n";
 		code += "\tALBEDO *= 1.0 - ref_amount;\n";
@@ -1479,9 +1482,9 @@ bool SpatialMaterial::is_grow_enabled() const {
 	return grow_enabled;
 }
 
-void SpatialMaterial::set_alpha_scissor_threshold(float p_treshold) {
-	alpha_scissor_threshold = p_treshold;
-	VS::get_singleton()->material_set_param(_get_material(), shader_names->alpha_scissor_threshold, p_treshold);
+void SpatialMaterial::set_alpha_scissor_threshold(float p_threshold) {
+	alpha_scissor_threshold = p_threshold;
+	VS::get_singleton()->material_set_param(_get_material(), shader_names->alpha_scissor_threshold, p_threshold);
 }
 
 float SpatialMaterial::get_alpha_scissor_threshold() const {

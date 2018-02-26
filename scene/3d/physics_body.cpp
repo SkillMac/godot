@@ -370,9 +370,7 @@ struct _RigidBodyInOut {
 
 void RigidBody::_direct_state_changed(Object *p_state) {
 
-//eh.. fuck
 #ifdef DEBUG_ENABLED
-
 	state = Object::cast_to<PhysicsDirectBodyState>(p_state);
 #else
 	state = (PhysicsDirectBodyState *)p_state; //trust it
@@ -696,6 +694,10 @@ void RigidBody::apply_impulse(const Vector3 &p_pos, const Vector3 &p_impulse) {
 	PhysicsServer::get_singleton()->body_apply_impulse(get_rid(), p_pos, p_impulse);
 }
 
+void RigidBody::apply_torque_impulse(const Vector3 &p_impulse) {
+	PhysicsServer::get_singleton()->body_apply_torque_impulse(get_rid(), p_impulse);
+}
+
 void RigidBody::set_use_continuous_collision_detection(bool p_enable) {
 
 	ccd = p_enable;
@@ -835,6 +837,7 @@ void RigidBody::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_axis_velocity", "axis_velocity"), &RigidBody::set_axis_velocity);
 	ClassDB::bind_method(D_METHOD("apply_impulse", "position", "impulse"), &RigidBody::apply_impulse);
+	ClassDB::bind_method(D_METHOD("apply_torque_impulse", "impulse"), &RigidBody::apply_torque_impulse);
 
 	ClassDB::bind_method(D_METHOD("set_sleeping", "sleeping"), &RigidBody::set_sleeping);
 	ClassDB::bind_method(D_METHOD("is_sleeping"), &RigidBody::is_sleeping);
@@ -925,10 +928,10 @@ RigidBody::~RigidBody() {
 //////////////////////////////////////////////////////
 //////////////////////////
 
-Ref<KinematicCollision> KinematicBody::_move(const Vector3 &p_motion) {
+Ref<KinematicCollision> KinematicBody::_move(const Vector3 &p_motion, bool p_infinite_inertia) {
 
 	Collision col;
-	if (move_and_collide(p_motion, col)) {
+	if (move_and_collide(p_motion, p_infinite_inertia, col)) {
 		if (motion_cache.is_null()) {
 			motion_cache.instance();
 			motion_cache->owner = this;
@@ -942,11 +945,11 @@ Ref<KinematicCollision> KinematicBody::_move(const Vector3 &p_motion) {
 	return Ref<KinematicCollision>();
 }
 
-bool KinematicBody::move_and_collide(const Vector3 &p_motion, Collision &r_collision) {
+bool KinematicBody::move_and_collide(const Vector3 &p_motion, bool p_infinite_inertia, Collision &r_collision) {
 
 	Transform gt = get_global_transform();
 	PhysicsServer::MotionResult result;
-	bool colliding = PhysicsServer::get_singleton()->body_test_motion(get_rid(), gt, p_motion, &result);
+	bool colliding = PhysicsServer::get_singleton()->body_test_motion(get_rid(), gt, p_motion, p_infinite_inertia, &result);
 
 	if (colliding) {
 		r_collision.collider_metadata = result.collider_metadata;
@@ -972,7 +975,7 @@ bool KinematicBody::move_and_collide(const Vector3 &p_motion, Collision &r_colli
 	return colliding;
 }
 
-Vector3 KinematicBody::move_and_slide(const Vector3 &p_linear_velocity, const Vector3 &p_floor_direction, float p_slope_stop_min_velocity, int p_max_slides, float p_floor_max_angle) {
+Vector3 KinematicBody::move_and_slide(const Vector3 &p_linear_velocity, const Vector3 &p_floor_direction, bool p_infinite_inertia, float p_slope_stop_min_velocity, int p_max_slides, float p_floor_max_angle) {
 
 	Vector3 lv = p_linear_velocity;
 
@@ -994,7 +997,7 @@ Vector3 KinematicBody::move_and_slide(const Vector3 &p_linear_velocity, const Ve
 
 		Collision collision;
 
-		bool collided = move_and_collide(motion, collision);
+		bool collided = move_and_collide(motion, p_infinite_inertia, collision);
 
 		if (collided) {
 
@@ -1067,11 +1070,11 @@ Vector3 KinematicBody::get_floor_velocity() const {
 	return floor_velocity;
 }
 
-bool KinematicBody::test_move(const Transform &p_from, const Vector3 &p_motion) {
+bool KinematicBody::test_move(const Transform &p_from, const Vector3 &p_motion, bool p_infinite_inertia) {
 
 	ERR_FAIL_COND_V(!is_inside_tree(), false);
 
-	return PhysicsServer::get_singleton()->body_test_motion(get_rid(), p_from, p_motion);
+	return PhysicsServer::get_singleton()->body_test_motion(get_rid(), p_from, p_motion, p_infinite_inertia);
 }
 
 void KinematicBody::set_axis_lock(PhysicsServer::BodyAxis p_axis, bool p_lock) {
@@ -1120,10 +1123,10 @@ Ref<KinematicCollision> KinematicBody::_get_slide_collision(int p_bounce) {
 
 void KinematicBody::_bind_methods() {
 
-	ClassDB::bind_method(D_METHOD("move_and_collide", "rel_vec"), &KinematicBody::_move);
-	ClassDB::bind_method(D_METHOD("move_and_slide", "linear_velocity", "floor_normal", "slope_stop_min_velocity", "max_slides", "floor_max_angle"), &KinematicBody::move_and_slide, DEFVAL(Vector3(0, 0, 0)), DEFVAL(0.05), DEFVAL(4), DEFVAL(Math::deg2rad((float)45)));
+	ClassDB::bind_method(D_METHOD("move_and_collide", "rel_vec", "infinite_inertia"), &KinematicBody::_move, DEFVAL(true));
+	ClassDB::bind_method(D_METHOD("move_and_slide", "linear_velocity", "floor_normal", "infinite_inertia", "slope_stop_min_velocity", "max_slides", "floor_max_angle"), &KinematicBody::move_and_slide, DEFVAL(Vector3(0, 0, 0)), DEFVAL(true), DEFVAL(0.05), DEFVAL(4), DEFVAL(Math::deg2rad((float)45)));
 
-	ClassDB::bind_method(D_METHOD("test_move", "from", "rel_vec"), &KinematicBody::test_move);
+	ClassDB::bind_method(D_METHOD("test_move", "from", "rel_vec", "infinite_inertia"), &KinematicBody::test_move);
 
 	ClassDB::bind_method(D_METHOD("is_on_floor"), &KinematicBody::is_on_floor);
 	ClassDB::bind_method(D_METHOD("is_on_ceiling"), &KinematicBody::is_on_ceiling);

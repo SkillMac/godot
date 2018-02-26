@@ -34,17 +34,27 @@
 #include "scene/main/viewport.h"
 #include "scene/scene_string_names.h"
 
-void Sprite::_edit_set_pivot(const Point2 &p_pivot) {
+Dictionary Sprite::_edit_get_state() const {
+	Dictionary state = Node2D::_edit_get_state();
+	state["offset"] = offset;
+	return state;
+}
 
-	set_offset(p_pivot);
+void Sprite::_edit_set_state(const Dictionary &p_state) {
+	Node2D::_edit_set_state(p_state);
+	set_offset(p_state["offset"]);
+}
+
+void Sprite::_edit_set_pivot(const Point2 &p_pivot) {
+	set_offset(get_offset() - p_pivot);
+	set_position(get_transform().xform(p_pivot));
 }
 
 Point2 Sprite::_edit_get_pivot() const {
-
-	return get_offset();
+	return Vector2();
 }
-bool Sprite::_edit_use_pivot() const {
 
+bool Sprite::_edit_use_pivot() const {
 	return true;
 }
 
@@ -287,7 +297,7 @@ bool Sprite::_edit_is_selected_on_click(const Point2 &p_point, double p_toleranc
 	return c.a > 0.01;
 }
 
-Rect2 Sprite::_edit_get_rect() const {
+Rect2 Sprite::get_rect() const {
 
 	if (texture.is_null())
 		return Rect2(0, 0, 1, 1);
@@ -363,6 +373,8 @@ void Sprite::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_hframes", "hframes"), &Sprite::set_hframes);
 	ClassDB::bind_method(D_METHOD("get_hframes"), &Sprite::get_hframes);
+
+	ClassDB::bind_method(D_METHOD("get_rect"), &Sprite::get_rect);
 
 	ADD_SIGNAL(MethodInfo("frame_changed"));
 	ADD_SIGNAL(MethodInfo("texture_changed"));

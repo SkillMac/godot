@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="Viewport" inherits="Node" category="Core" version="3.0-stable">
+<class name="Viewport" inherits="Node" category="Core" version="3.1-dev">
 	<brief_description>
 		Creates a sub-view into the screen.
 	</brief_description>
@@ -123,7 +123,7 @@
 			<return type="bool">
 			</return>
 			<description>
-				Get the enabled status of the size strech override set with [method set_size_override_stretch].
+				Get the enabled status of the size stretch override set with [method set_size_override_stretch].
 			</description>
 		</method>
 		<method name="set_attach_to_screen_rect">
@@ -302,7 +302,7 @@
 			Amount of objects in frame.
 		</constant>
 		<constant name="RENDER_INFO_VERTICES_IN_FRAME" value="1" enum="RenderInfo">
-			Amount of vertices in frame. 
+			Amount of vertices in frame.
 		</constant>
 		<constant name="RENDER_INFO_MATERIAL_CHANGES_IN_FRAME" value="2" enum="RenderInfo">
 			Amount of material changes in frame.

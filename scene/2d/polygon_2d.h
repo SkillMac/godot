@@ -40,6 +40,8 @@ class Polygon2D : public Node2D {
 	PoolVector<Vector2> polygon;
 	PoolVector<Vector2> uv;
 	PoolVector<Color> vertex_colors;
+	PoolVector<int> splits;
+
 	Color color;
 	Ref<Texture> texture;
 	Size2 tex_scale;
@@ -59,11 +61,24 @@ protected:
 	static void _bind_methods();
 
 public:
+	virtual Dictionary _edit_get_state() const;
+	virtual void _edit_set_state(const Dictionary &p_state);
+
+	virtual void _edit_set_pivot(const Point2 &p_pivot);
+	virtual Point2 _edit_get_pivot() const;
+	virtual bool _edit_use_pivot() const;
+	virtual Rect2 _edit_get_rect() const;
+
+	virtual bool _edit_is_selected_on_click(const Point2 &p_point, double p_tolerance) const;
+
 	void set_polygon(const PoolVector<Vector2> &p_polygon);
 	PoolVector<Vector2> get_polygon() const;
 
 	void set_uv(const PoolVector<Vector2> &p_uv);
 	PoolVector<Vector2> get_uv() const;
+
+	void set_splits(const PoolVector<int> &p_uv);
+	PoolVector<int> get_splits() const;
 
 	void set_color(const Color &p_color);
 	Color get_color() const;
@@ -97,15 +112,6 @@ public:
 
 	void set_offset(const Vector2 &p_offset);
 	Vector2 get_offset() const;
-
-	//editor stuff
-
-	virtual void _edit_set_pivot(const Point2 &p_pivot);
-	virtual Point2 _edit_get_pivot() const;
-	virtual bool _edit_use_pivot() const;
-
-	virtual Rect2 _edit_get_rect() const;
-	virtual bool _edit_is_selected_on_click(const Point2 &p_point, double p_tolerance) const;
 
 	Polygon2D();
 };

@@ -301,6 +301,14 @@ void EditorPlugin::remove_custom_type(const String &p_type) {
 	EditorNode::get_editor_data().remove_custom_type(p_type);
 }
 
+void EditorPlugin::add_autoload_singleton(const String &p_name, const String &p_path) {
+	EditorNode::get_singleton()->get_project_settings()->get_autoload_settings()->autoload_add(p_name, p_path);
+}
+
+void EditorPlugin::remove_autoload_singleton(const String &p_name) {
+	EditorNode::get_singleton()->get_project_settings()->get_autoload_settings()->autoload_remove(p_name);
+}
+
 ToolButton *EditorPlugin::add_control_to_bottom_panel(Control *p_control, const String &p_title) {
 
 	return EditorNode::get_singleton()->add_bottom_panel_item(p_title, p_control);
@@ -368,6 +376,53 @@ void EditorPlugin::add_control_to_container(CustomControlContainer p_location, C
 		case CONTAINER_PROPERTY_EDITOR_BOTTOM: {
 
 			EditorNode::get_singleton()->get_property_editor_vb()->add_child(p_control);
+
+		} break;
+	}
+}
+
+void EditorPlugin::remove_control_from_container(CustomControlContainer p_location, Control *p_control) {
+
+	switch (p_location) {
+
+		case CONTAINER_TOOLBAR: {
+
+			EditorNode::get_menu_hb()->remove_child(p_control);
+		} break;
+
+		case CONTAINER_SPATIAL_EDITOR_MENU: {
+
+			SpatialEditor::get_singleton()->remove_control_from_menu_panel(p_control);
+
+		} break;
+		case CONTAINER_SPATIAL_EDITOR_SIDE: {
+
+			SpatialEditor::get_singleton()->get_palette_split()->remove_child(p_control);
+
+		} break;
+		case CONTAINER_SPATIAL_EDITOR_BOTTOM: {
+
+			SpatialEditor::get_singleton()->get_shader_split()->remove_child(p_control);
+
+		} break;
+		case CONTAINER_CANVAS_EDITOR_MENU: {
+
+			CanvasItemEditor::get_singleton()->remove_control_from_menu_panel(p_control);
+
+		} break;
+		case CONTAINER_CANVAS_EDITOR_SIDE: {
+
+			CanvasItemEditor::get_singleton()->get_palette_split()->remove_child(p_control);
+
+		} break;
+		case CONTAINER_CANVAS_EDITOR_BOTTOM: {
+
+			CanvasItemEditor::get_singleton()->get_bottom_split()->remove_child(p_control);
+
+		} break;
+		case CONTAINER_PROPERTY_EDITOR_BOTTOM: {
+
+			EditorNode::get_singleton()->get_property_editor_vb()->remove_child(p_control);
 
 		} break;
 	}
@@ -651,11 +706,15 @@ void EditorPlugin::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("add_control_to_dock", "slot", "control"), &EditorPlugin::add_control_to_dock);
 	ClassDB::bind_method(D_METHOD("remove_control_from_docks", "control"), &EditorPlugin::remove_control_from_docks);
 	ClassDB::bind_method(D_METHOD("remove_control_from_bottom_panel", "control"), &EditorPlugin::remove_control_from_bottom_panel);
+	ClassDB::bind_method(D_METHOD("remove_control_from_container", "container", "control"), &EditorPlugin::remove_control_from_container);
 	//ClassDB::bind_method(D_METHOD("add_tool_menu_item", "name", "handler", "callback", "ud"),&EditorPlugin::add_tool_menu_item,DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("add_tool_submenu_item", "name", "submenu"), &EditorPlugin::add_tool_submenu_item);
 	//ClassDB::bind_method(D_METHOD("remove_tool_menu_item", "name"),&EditorPlugin::remove_tool_menu_item);
 	ClassDB::bind_method(D_METHOD("add_custom_type", "type", "base", "script", "icon"), &EditorPlugin::add_custom_type);
 	ClassDB::bind_method(D_METHOD("remove_custom_type", "type"), &EditorPlugin::remove_custom_type);
+
+	ClassDB::bind_method(D_METHOD("add_autoload_singleton", "name", "path"), &EditorPlugin::add_autoload_singleton);
+	ClassDB::bind_method(D_METHOD("remove_autoload_singleton", "name"), &EditorPlugin::remove_autoload_singleton);
 
 	ClassDB::bind_method(D_METHOD("update_overlays"), &EditorPlugin::update_overlays);
 

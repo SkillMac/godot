@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="OS" inherits="Object" category="Core" version="3.0-stable">
+<class name="OS" inherits="Object" category="Core" version="3.1-dev">
 	<brief_description>
 		Operating System functions.
 	</brief_description>
@@ -34,6 +34,12 @@
 			</return>
 			<description>
 				Returns [code]true[/code] if the current host platform is using multiple threads.
+			</description>
+		</method>
+		<method name="center_window">
+			<return type="void">
+			</return>
+			<description>
 			</description>
 		</method>
 		<method name="delay_msec" qualifiers="const">
@@ -232,6 +238,12 @@
 				Returns the number of cores available in the host machine.
 			</description>
 		</method>
+		<method name="get_real_window_size" qualifiers="const">
+			<return type="Vector2">
+			</return>
+			<description>
+			</description>
+		</method>
 		<method name="get_scancode_string" qualifiers="const">
 			<return type="String">
 			</return>
@@ -346,7 +358,8 @@
 			<return type="String">
 			</return>
 			<description>
-				Returns a string that is unique to the device. Currently only works on Android and iOS. Returns empty string on other platforms.
+				Returns a string that is unique to the device.
+				Returns empty string on HTML5 and UWP which are not supported yet.
 			</description>
 		</method>
 		<method name="get_unix_time" qualifiers="const">
@@ -372,6 +385,10 @@
 			</return>
 			<description>
 				Returns the absolute directory path where user data is written ([code]user://[/code]).
+				On Linux, this is [code]~/.local/share/godot/app_userdata/[project_name][/code], or [code]~/.local/share/[custom_name][/code] if [code]use_custom_user_dir[/code] is set.
+				On macOS, this is [code]~/Library/Application Support/Godot/app_userdata/[project_name][/code], or [code]~/Library/Application Support/[custom_name][/code] if [code]use_custom_user_dir[/code] is set.
+				On Windows, this is [code]%APPDATA%/Godot/app_userdata/[project_name][/code], or [code]%APPDATA%/[custom_name][/code] if [code]use_custom_user_dir[/code] is set.
+				If the project name is empty, [code]user://[/code] falls back to [code]res://[/code].
 			</description>
 		</method>
 		<method name="get_virtual_keyboard_height">
@@ -455,6 +472,12 @@
 			</return>
 			<description>
 				If [code]true[/code], the [code]user://[/code] file system is persistent, so that its state is the same after a player quits and starts the game again. Relevant to the HTML5 platform, where this persistence may be unavailable.
+			</description>
+		</method>
+		<method name="is_window_always_on_top" qualifiers="const">
+			<return type="bool">
+			</return>
+			<description>
 			</description>
 		</method>
 		<method name="kill">
@@ -583,6 +606,14 @@
 			</argument>
 			<description>
 				Enables backup saves if [code]enabled[/code] is [code]true[/code].
+			</description>
+		</method>
+		<method name="set_window_always_on_top">
+			<return type="void">
+			</return>
+			<argument index="0" name="enabled" type="bool">
+			</argument>
+			<description>
 			</description>
 		</method>
 		<method name="set_window_title">

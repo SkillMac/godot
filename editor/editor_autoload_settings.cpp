@@ -92,45 +92,7 @@ bool EditorAutoloadSettings::_autoload_name_is_valid(const String &p_name, Strin
 
 void EditorAutoloadSettings::_autoload_add() {
 
-	String name = autoload_add_name->get_text();
-
-	String error;
-	if (!_autoload_name_is_valid(name, &error)) {
-		EditorNode::get_singleton()->show_warning(error);
-		return;
-	}
-
-	String path = autoload_add_path->get_line_edit()->get_text();
-	if (!FileAccess::exists(path)) {
-		EditorNode::get_singleton()->show_warning(TTR("Invalid Path.") + "\n" + TTR("File does not exist."));
-		return;
-	}
-
-	if (!path.begins_with("res://")) {
-		EditorNode::get_singleton()->show_warning(TTR("Invalid Path.") + "\n" + TTR("Not in resource path."));
-		return;
-	}
-
-	name = "autoload/" + name;
-
-	UndoRedo *undo_redo = EditorNode::get_singleton()->get_undo_redo();
-
-	undo_redo->create_action(TTR("Add AutoLoad"));
-	undo_redo->add_do_property(ProjectSettings::get_singleton(), name, "*" + path);
-
-	if (ProjectSettings::get_singleton()->has_setting(name)) {
-		undo_redo->add_undo_property(ProjectSettings::get_singleton(), name, ProjectSettings::get_singleton()->get(name));
-	} else {
-		undo_redo->add_undo_property(ProjectSettings::get_singleton(), name, Variant());
-	}
-
-	undo_redo->add_do_method(this, "update_autoload");
-	undo_redo->add_undo_method(this, "update_autoload");
-
-	undo_redo->add_do_method(this, "emit_signal", autoload_changed);
-	undo_redo->add_undo_method(this, "emit_signal", autoload_changed);
-
-	undo_redo->commit_action();
+	autoload_add(autoload_add_name->get_text(), autoload_add_path->get_line_edit()->get_text());
 
 	autoload_add_path->get_line_edit()->set_text("");
 	autoload_add_name->set_text("");
@@ -246,7 +208,9 @@ void EditorAutoloadSettings::_autoload_button_pressed(Object *p_item, int p_colu
 	UndoRedo *undo_redo = EditorNode::get_undo_redo();
 
 	switch (p_button) {
-
+		case BUTTON_OPEN: {
+			_autoload_open(ti->get_text(1));
+		} break;
 		case BUTTON_MOVE_UP:
 		case BUTTON_MOVE_DOWN: {
 
@@ -305,6 +269,21 @@ void EditorAutoloadSettings::_autoload_button_pressed(Object *p_item, int p_colu
 	}
 }
 
+void EditorAutoloadSettings::_autoload_activated() {
+	TreeItem *ti = tree->get_selected();
+	if (!ti)
+		return;
+	_autoload_open(ti->get_text(1));
+}
+
+void EditorAutoloadSettings::_autoload_open(const String &fpath) {
+	if (ResourceLoader::get_resource_type(fpath) == "PackedScene") {
+		EditorNode::get_singleton()->open_request(fpath);
+	} else {
+		EditorNode::get_singleton()->load_resource(fpath);
+	}
+	ProjectSettingsEditor::get_singleton()->hide();
+}
 void EditorAutoloadSettings::_autoload_file_callback(const String &p_path) {
 
 	autoload_add_name->set_text(p_path.get_file().get_basename());
@@ -356,13 +335,13 @@ void EditorAutoloadSettings::update_autoload() {
 		item->set_editable(0, true);
 
 		item->set_text(1, path);
-		item->set_selectable(1, false);
+		item->set_selectable(1, true);
 
 		item->set_cell_mode(2, TreeItem::CELL_MODE_CHECK);
 		item->set_editable(2, true);
 		item->set_text(2, TTR("Enable"));
 		item->set_checked(2, global);
-
+		item->add_button(3, get_icon("FileList", "EditorIcons"), BUTTON_OPEN);
 		item->add_button(3, get_icon("MoveUp", "EditorIcons"), BUTTON_MOVE_UP);
 		item->add_button(3, get_icon("MoveDown", "EditorIcons"), BUTTON_MOVE_DOWN);
 		item->add_button(3, get_icon("Remove", "EditorIcons"), BUTTON_DELETE);
@@ -522,6 +501,74 @@ void EditorAutoloadSettings::drop_data_fw(const Point2 &p_point, const Variant &
 	undo_redo->commit_action();
 }
 
+void EditorAutoloadSettings::autoload_add(const String &p_name, const String &p_path) {
+
+	String name = p_name;
+
+	String error;
+	if (!_autoload_name_is_valid(name, &error)) {
+		EditorNode::get_singleton()->show_warning(error);
+		return;
+	}
+
+	String path = p_path;
+	if (!FileAccess::exists(path)) {
+		EditorNode::get_singleton()->show_warning(TTR("Invalid Path.") + "\n" + TTR("File does not exist."));
+		return;
+	}
+
+	if (!path.begins_with("res://")) {
+		EditorNode::get_singleton()->show_warning(TTR("Invalid Path.") + "\n" + TTR("Not in resource path."));
+		return;
+	}
+
+	name = "autoload/" + name;
+
+	UndoRedo *undo_redo = EditorNode::get_singleton()->get_undo_redo();
+
+	undo_redo->create_action(TTR("Add AutoLoad"));
+	undo_redo->add_do_property(ProjectSettings::get_singleton(), name, "*" + path);
+
+	if (ProjectSettings::get_singleton()->has_setting(name)) {
+		undo_redo->add_undo_property(ProjectSettings::get_singleton(), name, ProjectSettings::get_singleton()->get(name));
+	} else {
+		undo_redo->add_undo_property(ProjectSettings::get_singleton(), name, Variant());
+	}
+
+	undo_redo->add_do_method(this, "update_autoload");
+	undo_redo->add_undo_method(this, "update_autoload");
+
+	undo_redo->add_do_method(this, "emit_signal", autoload_changed);
+	undo_redo->add_undo_method(this, "emit_signal", autoload_changed);
+
+	undo_redo->commit_action();
+}
+
+void EditorAutoloadSettings::autoload_remove(const String &p_name) {
+
+	String name = "autoload/" + p_name;
+
+	UndoRedo *undo_redo = EditorNode::get_singleton()->get_undo_redo();
+
+	int order = ProjectSettings::get_singleton()->get_order(name);
+
+	undo_redo->create_action(TTR("Remove Autoload"));
+
+	undo_redo->add_do_property(ProjectSettings::get_singleton(), name, Variant());
+
+	undo_redo->add_undo_property(ProjectSettings::get_singleton(), name, ProjectSettings::get_singleton()->get(name));
+	undo_redo->add_undo_method(ProjectSettings::get_singleton(), "set_persisting", name, true);
+	undo_redo->add_undo_method(ProjectSettings::get_singleton(), "set_order", order);
+
+	undo_redo->add_do_method(this, "update_autoload");
+	undo_redo->add_undo_method(this, "update_autoload");
+
+	undo_redo->add_do_method(this, "emit_signal", autoload_changed);
+	undo_redo->add_undo_method(this, "emit_signal", autoload_changed);
+
+	undo_redo->commit_action();
+}
+
 void EditorAutoloadSettings::_bind_methods() {
 
 	ClassDB::bind_method("_autoload_add", &EditorAutoloadSettings::_autoload_add);
@@ -529,12 +576,16 @@ void EditorAutoloadSettings::_bind_methods() {
 	ClassDB::bind_method("_autoload_edited", &EditorAutoloadSettings::_autoload_edited);
 	ClassDB::bind_method("_autoload_button_pressed", &EditorAutoloadSettings::_autoload_button_pressed);
 	ClassDB::bind_method("_autoload_file_callback", &EditorAutoloadSettings::_autoload_file_callback);
+	ClassDB::bind_method("_autoload_activated", &EditorAutoloadSettings::_autoload_activated);
+	ClassDB::bind_method("_autoload_open", &EditorAutoloadSettings::_autoload_open);
 
 	ClassDB::bind_method("get_drag_data_fw", &EditorAutoloadSettings::get_drag_data_fw);
 	ClassDB::bind_method("can_drop_data_fw", &EditorAutoloadSettings::can_drop_data_fw);
 	ClassDB::bind_method("drop_data_fw", &EditorAutoloadSettings::drop_data_fw);
 
 	ClassDB::bind_method("update_autoload", &EditorAutoloadSettings::update_autoload);
+	ClassDB::bind_method("autoload_add", &EditorAutoloadSettings::autoload_add);
+	ClassDB::bind_method("autoload_remove", &EditorAutoloadSettings::autoload_remove);
 
 	ADD_SIGNAL(MethodInfo("autoload_changed"));
 }
@@ -595,12 +646,12 @@ EditorAutoloadSettings::EditorAutoloadSettings() {
 	tree->set_column_min_width(2, 80);
 
 	tree->set_column_expand(3, false);
-	tree->set_column_min_width(3, 80);
+	tree->set_column_min_width(3, 120);
 
 	tree->connect("cell_selected", this, "_autoload_selected");
 	tree->connect("item_edited", this, "_autoload_edited");
 	tree->connect("button_pressed", this, "_autoload_button_pressed");
-
+	tree->connect("item_activated", this, "_autoload_activated");
 	tree->set_v_size_flags(SIZE_EXPAND_FILL);
 
 	add_child(tree, true);

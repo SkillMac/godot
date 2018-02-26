@@ -505,6 +505,7 @@ private:
 	ConfirmationDialog *settings_dialog;
 
 	bool snap_enabled;
+	bool snap_key_enabled;
 	LineEdit *snap_translate;
 	LineEdit *snap_rotate;
 	LineEdit *snap_scale;
@@ -531,7 +532,9 @@ private:
 
 	void _instance_scene();
 	void _init_indicators();
+	void _init_grid();
 	void _finish_indicators();
+	void _finish_grid();
 
 	void _toggle_maximize_view(Object *p_viewport);
 
@@ -577,7 +580,7 @@ public:
 
 	ToolMode get_tool_mode() const { return tool_mode; }
 	bool are_local_coords_enabled() const { return tool_option_button[SpatialEditor::TOOL_OPT_LOCAL_COORDS]->is_pressed(); }
-	bool is_snap_enabled() const { return snap_enabled; }
+	bool is_snap_enabled() const { return snap_enabled ^ snap_key_enabled; }
 	float get_translate_snap() const { return snap_translate->get_text().to_double(); }
 	float get_rotate_snap() const { return snap_rotate->get_text().to_double(); }
 	float get_scale_snap() const { return snap_scale->get_text().to_double(); }
@@ -605,6 +608,7 @@ public:
 	UndoRedo *get_undo_redo() { return undo_redo; }
 
 	void add_control_to_menu_panel(Control *p_control);
+	void remove_control_from_menu_panel(Control *p_control);
 
 	VSplitContainer *get_shader_split();
 	HSplitContainer *get_palette_split();

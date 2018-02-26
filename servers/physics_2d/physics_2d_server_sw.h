@@ -232,7 +232,7 @@ public:
 
 	virtual void body_set_pickable(RID p_body, bool p_pickable);
 
-	virtual bool body_test_motion(RID p_body, const Transform2D &p_from, const Vector2 &p_motion, real_t p_margin = 0.001, MotionResult *r_result = NULL);
+	virtual bool body_test_motion(RID p_body, const Transform2D &p_from, const Vector2 &p_motion, bool p_infinite_inertia, real_t p_margin = 0.001, MotionResult *r_result = NULL);
 
 	// this function only works on physics process, errors and returns null otherwise
 	virtual Physics2DDirectBodyState *body_get_direct_state(RID p_body);
@@ -241,6 +241,9 @@ public:
 
 	virtual void joint_set_param(RID p_joint, JointParam p_param, real_t p_value);
 	virtual real_t joint_get_param(RID p_joint, JointParam p_param) const;
+
+	virtual void joint_disable_collisions_between_bodies(RID p_joint, const bool p_disabled);
+	virtual bool joint_is_disabled_collisions_between_bodies(RID p_joint) const;
 
 	virtual RID pin_joint_create(const Vector2 &p_pos, RID p_body_a, RID p_body_b = RID());
 	virtual RID groove_joint_create(const Vector2 &p_a_groove1, const Vector2 &p_a_groove2, const Vector2 &p_b_anchor, RID p_body_a, RID p_body_b);

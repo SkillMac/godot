@@ -118,6 +118,8 @@ void CSharpLanguage::init() {
 
 #ifdef TOOLS_ENABLED
 	EditorNode::add_init_callback(&gdsharp_editor_init_callback);
+
+	GLOBAL_DEF("mono/export/include_scripts_content", true);
 #endif
 }
 
@@ -454,7 +456,7 @@ Vector<ScriptLanguage::StackInfo> CSharpLanguage::debug_get_current_stack_info()
 #ifdef DEBUG_ENABLED
 	// Printing an error here will result in endless recursion, so we must be careful
 
-	if (!gdmono->is_runtime_initialized() || !GDMono::get_singleton()->get_api_assembly() || !GDMonoUtils::mono_cache.corlib_cache_updated)
+	if (!gdmono->is_runtime_initialized() || !GDMono::get_singleton()->get_core_api_assembly() || !GDMonoUtils::mono_cache.corlib_cache_updated)
 		return Vector<StackInfo>();
 
 	MonoObject *stack_trace = mono_object_new(mono_domain_get(), CACHED_CLASS(System_Diagnostics_StackTrace)->get_mono_ptr());
@@ -721,8 +723,10 @@ void CSharpLanguage::reload_assemblies_if_needed(bool p_soft_reload) {
 	for (Map<Ref<CSharpScript>, Map<ObjectID, List<Pair<StringName, Variant> > > >::Element *E = to_reload.front(); E; E = E->next()) {
 
 		Ref<CSharpScript> scr = E->key();
+		scr->signals_invalidated = true;
 		scr->exports_invalidated = true;
 		scr->reload(p_soft_reload);
+		scr->update_signals();
 		scr->update_exports();
 
 		//restore state if saved
@@ -755,8 +759,10 @@ void CSharpLanguage::reload_assemblies_if_needed(bool p_soft_reload) {
 		//if instance states were saved, set them!
 	}
 
-	if (Engine::get_singleton()->is_editor_hint())
+	if (Engine::get_singleton()->is_editor_hint()) {
 		EditorNode::get_singleton()->get_property_editor()->update_tree();
+		NodeDock::singleton->update_lists();
+	}
 }
 #endif
 
@@ -1545,6 +1551,74 @@ bool CSharpScript::_update_exports() {
 	return false;
 }
 
+bool CSharpScript::_update_signals() {
+	if (!valid)
+		return false;
+
+	bool changed = false;
+
+	if (signals_invalidated) {
+		signals_invalidated = false;
+
+		GDMonoClass *top = script_class;
+
+		_signals.clear();
+		changed = true; // TODO Do a real check for change
+
+		while (top && top != native) {
+			const Vector<GDMonoClass *> &delegates = top->get_all_delegates();
+			for (int i = delegates.size() - 1; i >= 0; --i) {
+				Vector<Argument> parameters;
+
+				GDMonoClass *delegate = delegates[i];
+
+				if (_get_signal(top, delegate, parameters)) {
+					_signals[delegate->get_name()] = parameters;
+				}
+			}
+
+			top = top->get_parent_class();
+		}
+	}
+
+	return changed;
+}
+
+bool CSharpScript::_get_signal(GDMonoClass *p_class, GDMonoClass *p_delegate, Vector<Argument> &params) {
+	if (p_delegate->has_attribute(CACHED_CLASS(SignalAttribute))) {
+		MonoType *raw_type = GDMonoClass::get_raw_type(p_delegate);
+
+		if (mono_type_get_type(raw_type) == MONO_TYPE_CLASS) {
+			// Arguments are accessibles as arguments of .Invoke method
+			GDMonoMethod *invoke = p_delegate->get_method("Invoke", -1);
+
+			Vector<StringName> names;
+			Vector<ManagedType> types;
+			invoke->get_parameter_names(names);
+			invoke->get_parameter_types(types);
+
+			if (names.size() == types.size()) {
+				for (int i = 0; i < names.size(); ++i) {
+					Argument arg;
+					arg.name = names[i];
+					arg.type = GDMonoMarshal::managed_to_variant_type(types[i]);
+
+					if (arg.type == Variant::NIL) {
+						ERR_PRINTS("Unknown type of signal parameter: " + arg.name + " in " + p_class->get_full_name());
+						return false;
+					}
+
+					params.push_back(arg);
+				}
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 #ifdef TOOLS_ENABLED
 bool CSharpScript::_get_member_export(GDMonoClass *p_class, GDMonoClassMember *p_member, PropertyInfo &r_prop_info, bool &r_exported) {
 
@@ -1866,11 +1940,14 @@ ScriptInstance *CSharpScript::instance_create(Object *p_this) {
 		PlaceHolderScriptInstance *si = memnew(PlaceHolderScriptInstance(CSharpLanguage::get_singleton(), Ref<Script>(this), p_this));
 		placeholders.insert(si);
 		_update_exports();
+		_update_signals();
 		return si;
 #else
 		return NULL;
 #endif
 	}
+
+	update_signals();
 
 	if (native) {
 		String native_name = native->get_name();
@@ -2035,6 +2112,31 @@ void CSharpScript::update_exports() {
 #endif
 }
 
+bool CSharpScript::has_script_signal(const StringName &p_signal) const {
+	if (_signals.has(p_signal))
+		return true;
+
+	return false;
+}
+
+void CSharpScript::get_script_signal_list(List<MethodInfo> *r_signals) const {
+	for (const Map<StringName, Vector<Argument> >::Element *E = _signals.front(); E; E = E->next()) {
+		MethodInfo mi;
+
+		mi.name = E->key();
+		for (int i = 0; i < E->get().size(); i++) {
+			PropertyInfo arg;
+			arg.name = E->get()[i].name;
+			mi.arguments.push_back(arg);
+		}
+		r_signals->push_back(mi);
+	}
+}
+
+void CSharpScript::update_signals() {
+	_update_signals();
+}
+
 Ref<Script> CSharpScript::get_base_script() const {
 
 	// TODO search in metadata file once we have it, not important any way?
@@ -2099,6 +2201,7 @@ CSharpScript::CSharpScript() :
 #ifdef TOOLS_ENABLED
 	source_changed_cache = false;
 	exports_invalidated = true;
+	signals_invalidated = true;
 #endif
 
 	_resource_path_changed();

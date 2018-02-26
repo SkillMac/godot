@@ -217,7 +217,7 @@ class Physics2DServer : public Object {
 
 	static Physics2DServer *singleton;
 
-	virtual bool _body_test_motion(RID p_body, const Transform2D &p_from, const Vector2 &p_motion, float p_margin = 0.08, const Ref<Physics2DTestMotionResult> &p_result = Ref<Physics2DTestMotionResult>());
+	virtual bool _body_test_motion(RID p_body, const Transform2D &p_from, const Vector2 &p_motion, bool p_infinite_inertia, float p_margin = 0.08, const Ref<Physics2DTestMotionResult> &p_result = Ref<Physics2DTestMotionResult>());
 
 protected:
 	static void _bind_methods();
@@ -479,7 +479,7 @@ public:
 		Variant collider_metadata;
 	};
 
-	virtual bool body_test_motion(RID p_body, const Transform2D &p_from, const Vector2 &p_motion, float p_margin = 0.001, MotionResult *r_result = NULL) = 0;
+	virtual bool body_test_motion(RID p_body, const Transform2D &p_from, const Vector2 &p_motion, bool p_infinite_inertia, float p_margin = 0.001, MotionResult *r_result = NULL) = 0;
 
 	/* JOINT API */
 
@@ -498,6 +498,9 @@ public:
 
 	virtual void joint_set_param(RID p_joint, JointParam p_param, real_t p_value) = 0;
 	virtual real_t joint_get_param(RID p_joint, JointParam p_param) const = 0;
+
+	virtual void joint_disable_collisions_between_bodies(RID p_joint, const bool p_disable) = 0;
+	virtual bool joint_is_disabled_collisions_between_bodies(RID p_joint) const = 0;
 
 	virtual RID pin_joint_create(const Vector2 &p_anchor, RID p_body_a, RID p_body_b = RID()) = 0;
 	virtual RID groove_joint_create(const Vector2 &p_a_groove1, const Vector2 &p_a_groove2, const Vector2 &p_b_anchor, RID p_body_a, RID p_body_b) = 0;

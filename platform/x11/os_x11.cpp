@@ -32,6 +32,7 @@
 #include "drivers/gles3/rasterizer_gles3.h"
 #include "errno.h"
 #include "key_mapping_x11.h"
+#include "os/dir_access.h"
 #include "print_string.h"
 #include "servers/visual/visual_server_raster.h"
 #include "servers/visual/visual_server_wrap_mt.h"
@@ -333,6 +334,11 @@ Error OS_X11::initialize(const VideoMode &p_desired, int p_video_driver, int p_a
 		XFree(xsh);
 	}
 
+	if (current_videomode.always_on_top) {
+		current_videomode.always_on_top = false;
+		set_window_always_on_top(true);
+	}
+
 	AudioDriverManager::initialize(p_audio_driver);
 
 	ERR_FAIL_COND_V(!visual_server, ERR_UNAVAILABLE);
@@ -549,6 +555,21 @@ void OS_X11::set_ime_position(const Point2 &p_pos) {
 	XFree(preedit_attr);
 }
 
+String OS_X11::get_unique_id() const {
+
+	static String machine_id;
+	if (machine_id.empty()) {
+		if (FileAccess *f = FileAccess::open("/etc/machine-id", FileAccess::READ)) {
+			while (machine_id.empty() && !f->eof_reached()) {
+				machine_id = f->get_line().strip_edges();
+			}
+			f->close();
+			memdelete(f);
+		}
+	}
+	return machine_id;
+}
+
 void OS_X11::finalize() {
 
 	if (main_loop)
@@ -710,8 +731,15 @@ void OS_X11::get_fullscreen_mode_list(List<VideoMode> *p_list, int p_screen) con
 }
 
 void OS_X11::set_wm_fullscreen(bool p_enabled) {
-	if (current_videomode.fullscreen == p_enabled)
-		return;
+	if (p_enabled && !get_borderless_window()) {
+		// remove decorations if the window is not already borderless
+		Hints hints;
+		Atom property;
+		hints.flags = 2;
+		hints.decorations = 0;
+		property = XInternAtom(x11_display, "_MOTIF_WM_HINTS", True);
+		XChangeProperty(x11_display, x11_window, property, property, 32, PropModeReplace, (unsigned char *)&hints, 5);
+	}
 
 	if (p_enabled && !is_window_resizable()) {
 		// Set the window as resizable to prevent window managers to ignore the fullscreen state flag.
@@ -723,7 +751,7 @@ void OS_X11::set_wm_fullscreen(bool p_enabled) {
 		XFree(xsh);
 	}
 
-	// Using EWMH -- Extened Window Manager Hints
+	// Using EWMH -- Extended Window Manager Hints
 	XEvent xev;
 	Atom wm_state = XInternAtom(x11_display, "_NET_WM_STATE", False);
 	Atom wm_fullscreen = XInternAtom(x11_display, "_NET_WM_STATE_FULLSCREEN", False);
@@ -771,6 +799,22 @@ void OS_X11::set_wm_fullscreen(bool p_enabled) {
 		property = XInternAtom(x11_display, "_MOTIF_WM_HINTS", True);
 		XChangeProperty(x11_display, x11_window, property, property, 32, PropModeReplace, (unsigned char *)&hints, 5);
 	}
+}
+
+void OS_X11::set_wm_above(bool p_enabled) {
+	Atom wm_state = XInternAtom(x11_display, "_NET_WM_STATE", False);
+	Atom wm_above = XInternAtom(x11_display, "_NET_WM_STATE_ABOVE", False);
+
+	XClientMessageEvent xev;
+	memset(&xev, 0, sizeof(xev));
+	xev.type = ClientMessage;
+	xev.window = x11_window;
+	xev.message_type = wm_state;
+	xev.format = 32;
+	xev.data.l[0] = p_enabled ? _NET_WM_STATE_ADD : _NET_WM_STATE_REMOVE;
+	xev.data.l[1] = wm_above;
+	xev.data.l[3] = 1;
+	XSendEvent(x11_display, DefaultRootWindow(x11_display), False, SubstructureRedirectMask | SubstructureNotifyMask, (XEvent *)&xev);
 }
 
 int OS_X11::get_screen_count() const {
@@ -924,6 +968,26 @@ Size2 OS_X11::get_window_size() const {
 	return Size2i(current_videomode.width, current_videomode.height);
 }
 
+Size2 OS_X11::get_real_window_size() const {
+	XWindowAttributes xwa;
+	XSync(x11_display, False);
+	XGetWindowAttributes(x11_display, x11_window, &xwa);
+	int w = xwa.width;
+	int h = xwa.height;
+	Atom prop = XInternAtom(x11_display, "_NET_FRAME_EXTENTS", True);
+	Atom type;
+	int format;
+	unsigned long len;
+	unsigned long remaining;
+	unsigned char *data = NULL;
+	if (XGetWindowProperty(x11_display, x11_window, prop, 0, 4, False, AnyPropertyType, &type, &format, &len, &remaining, &data) == Success) {
+		long *extents = (long *)data;
+		w += extents[0] + extents[1]; // left, right
+		h += extents[2] + extents[3]; // top, bottom
+	}
+	return Size2(w, h);
+}
+
 void OS_X11::set_window_size(const Size2 p_size) {
 	// If window resizable is disabled we need to update the attributes first
 	if (is_window_resizable() == false) {
@@ -947,7 +1011,19 @@ void OS_X11::set_window_size(const Size2 p_size) {
 }
 
 void OS_X11::set_window_fullscreen(bool p_enabled) {
+	if (current_videomode.fullscreen == p_enabled)
+		return;
+
+	if (p_enabled && current_videomode.always_on_top) {
+		// Fullscreen + Always-on-top requires a maximized window on some window managers (Metacity)
+		set_window_maximized(true);
+	}
 	set_wm_fullscreen(p_enabled);
+	if (!p_enabled && !current_videomode.always_on_top) {
+		// Restore
+		set_window_maximized(false);
+	}
+
 	current_videomode.fullscreen = p_enabled;
 }
 
@@ -1152,6 +1228,27 @@ bool OS_X11::is_window_maximized() const {
 	}
 
 	return false;
+}
+
+void OS_X11::set_window_always_on_top(bool p_enabled) {
+	if (is_window_always_on_top() == p_enabled)
+		return;
+
+	if (p_enabled && current_videomode.fullscreen) {
+		// Fullscreen + Always-on-top requires a maximized window on some window managers (Metacity)
+		set_window_maximized(true);
+	}
+	set_wm_above(p_enabled);
+	if (!p_enabled && !current_videomode.fullscreen) {
+		// Restore
+		set_window_maximized(false);
+	}
+
+	current_videomode.always_on_top = p_enabled;
+}
+
+bool OS_X11::is_window_always_on_top() const {
+	return current_videomode.always_on_top;
 }
 
 void OS_X11::set_borderless_window(bool p_borderless) {
@@ -2499,48 +2596,66 @@ static String get_mountpoint(const String &p_path) {
 }
 
 Error OS_X11::move_to_trash(const String &p_path) {
-	String trashcan = "";
+	String trash_can = "";
 	String mnt = get_mountpoint(p_path);
 
+	// If there is a directory "[Mountpoint]/.Trash-[UID]/files", use it as the trash can.
 	if (mnt != "") {
 		String path(mnt + "/.Trash-" + itos(getuid()) + "/files");
 		struct stat s;
 		if (!stat(path.utf8().get_data(), &s)) {
-			trashcan = path;
+			trash_can = path;
 		}
 	}
 
-	if (trashcan == "") {
+	// Otherwise, if ${XDG_DATA_HOME} is defined, use "${XDG_DATA_HOME}/Trash/files" as the trash can.
+	if (trash_can == "") {
 		char *dhome = getenv("XDG_DATA_HOME");
 		if (dhome) {
-			trashcan = String(dhome) + "/Trash/files";
+			trash_can = String(dhome) + "/Trash/files";
 		}
 	}
 
-	if (trashcan == "") {
+	// Otherwise, if ${HOME} is defined, use "${HOME}/.local/share/Trash/files" as the trash can.
+	if (trash_can == "") {
 		char *home = getenv("HOME");
 		if (home) {
-			trashcan = String(home) + "/.local/share/Trash/files";
+			trash_can = String(home) + "/.local/share/Trash/files";
 		}
 	}
 
-	if (trashcan == "") {
-		ERR_PRINTS("move_to_trash: Could not determine trashcan location");
+	// Issue an error if none of the previous locations is appropriate for the trash can.
+	if (trash_can == "") {
+		ERR_PRINTS("move_to_trash: Could not determine the trash can location");
 		return FAILED;
 	}
 
-	List<String> args;
-	args.push_back("-p");
-	args.push_back(trashcan);
-	Error err = execute("mkdir", args, true);
-	if (err == OK) {
-		List<String> args2;
-		args2.push_back(p_path);
-		args2.push_back(trashcan);
-		err = execute("mv", args2, true);
+	// Create needed directories for decided trash can location.
+	DirAccess *dir_access = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+	Error err = dir_access->make_dir_recursive(trash_can);
+	memdelete(dir_access);
+
+	// Issue an error if trash can is not created proprely.
+	if (err != OK) {
+		ERR_PRINTS("move_to_trash: Could not create the trash can \"" + trash_can + "\"");
+		return err;
 	}
 
-	return err;
+	// The trash can is successfully created, now move the given resource to it.
+	// Do not use DirAccess:rename() because it can't move files across multiple mountpoints.
+	List<String> mv_args;
+	mv_args.push_back(p_path);
+	mv_args.push_back(trash_can);
+	int retval;
+	err = execute("mv", mv_args, true, NULL, NULL, &retval);
+
+	// Issue an error if "mv" failed to move the given resource to the trash can.
+	if (err != OK || retval != 0) {
+		ERR_PRINTS("move_to_trash: Could not move the resource \"" + p_path + "\" to the trash can \"" + trash_can + "\"");
+		return FAILED;
+	}
+
+	return OK;
 }
 
 OS::LatinKeyboardVariant OS_X11::get_latin_keyboard_variant() const {

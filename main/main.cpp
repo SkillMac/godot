@@ -106,6 +106,7 @@ static OS::VideoMode video_mode;
 static bool init_maximized = false;
 static bool init_windowed = false;
 static bool init_fullscreen = false;
+static bool init_always_on_top = false;
 static bool init_use_custom_pos = false;
 #ifdef DEBUG_ENABLED
 static bool debug_collisions = false;
@@ -124,8 +125,16 @@ static bool editor = false;
 static bool show_help = false;
 static bool disable_render_loop = false;
 static int fixed_fps = -1;
+static bool auto_build_solutions = false;
+static bool auto_quit = false;
 
 static OS::ProcessID allow_focus_steal_pid = 0;
+
+static bool project_manager = false;
+
+bool Main::is_project_manager() {
+	return project_manager;
+}
 
 void initialize_physics() {
 
@@ -166,7 +175,7 @@ static String get_full_version_string() {
 	String hash = String(VERSION_HASH);
 	if (hash.length() != 0)
 		hash = "." + hash.left(7);
-	return String(VERSION_MKSTRING) + hash;
+	return String(VERSION_FULL_BUILD) + hash;
 }
 
 //#define DEBUG_INIT
@@ -197,6 +206,7 @@ void Main::print_help(const char *p_binary) {
 	OS::get_singleton()->print("  -e, --editor                     Start the editor instead of running the scene.\n");
 	OS::get_singleton()->print("  -p, --project-manager            Start the project manager, even if a project is auto-detected.\n");
 #endif
+	OS::get_singleton()->print("  -q, --quit                       Quit after the first iteration.\n");
 	OS::get_singleton()->print("  -l, --language <locale>          Use a specific locale (<locale> being a two-letter code).\n");
 	OS::get_singleton()->print("  --path <directory>               Path to a project (<directory> must contain a 'project.godot' file).\n");
 	OS::get_singleton()->print("  -u, --upwards                    Scan folders upwards for project.godot file.\n");
@@ -224,6 +234,7 @@ void Main::print_help(const char *p_binary) {
 	OS::get_singleton()->print("  -f, --fullscreen                 Request fullscreen mode.\n");
 	OS::get_singleton()->print("  -m, --maximized                  Request a maximized window.\n");
 	OS::get_singleton()->print("  -w, --windowed                   Request windowed mode.\n");
+	OS::get_singleton()->print("  -t, --always-on-top              Request an always-on-top window.\n");
 	OS::get_singleton()->print("  --resolution <W>x<H>             Request window resolution.\n");
 	OS::get_singleton()->print("  --position <X>,<Y>               Request window position.\n");
 	OS::get_singleton()->print("  --low-dpi                        Force low-DPI mode (macOS and Windows only).\n");
@@ -253,6 +264,7 @@ void Main::print_help(const char *p_binary) {
 	OS::get_singleton()->print("  --export-debug                   Use together with --export, enables debug mode for the template.\n");
 	OS::get_singleton()->print("  --doctool <path>                 Dump the engine API reference to the given <path> in XML format, merging if existing files are found.\n");
 	OS::get_singleton()->print("  --no-docbase                     Disallow dumping the base types (used with --doctool).\n");
+	OS::get_singleton()->print("  --build-solutions                Build the scripting solutions (e.g. for C# projects).\n");
 #ifdef DEBUG_METHODS_ENABLED
 	OS::get_singleton()->print("  --gdnative-generate-json-api     Generate JSON dump of the Godot API for GDNative bindings.\n");
 #endif
@@ -430,6 +442,9 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		} else if (I->get() == "-w" || I->get() == "--windowed") { // force windowed window
 
 			init_windowed = true;
+		} else if (I->get() == "-t" || I->get() == "--always-on-top") { // force always-on-top window
+
+			init_always_on_top = true;
 		} else if (I->get() == "--profiling") { // enable profiling
 
 			use_debug_profiler = true;
@@ -508,9 +523,17 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 			//video_mode.fullscreen=false;
 			init_fullscreen = true;
+#ifdef TOOLS_ENABLED
 		} else if (I->get() == "-e" || I->get() == "--editor") { // starts editor
 
 			editor = true;
+		} else if (I->get() == "-p" || I->get() == "--project-manager") { // starts project manager
+
+			project_manager = true;
+		} else if (I->get() == "--build-solutions") { // Build the scripting solution such C#
+
+			auto_build_solutions = true;
+#endif
 		} else if (I->get() == "--no-window") { // disable window creation, Windows only
 
 			OS::get_singleton()->set_no_window_mode(true);
@@ -536,6 +559,8 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			}
 		} else if (I->get() == "-u" || I->get() == "--upwards") { // scan folders upwards
 			upwards = true;
+		} else if (I->get() == "-q" || I->get() == "--quit") { // Auto quit at the end of the first main loop iteration
+			auto_quit = true;
 		} else if (I->get().ends_with("project.godot")) {
 			String path;
 			String file = I->get();
@@ -744,6 +769,15 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 		goto error;
 #endif
+	} else if (String(GLOBAL_DEF("application/run/main_scene", "")) == "") {
+#ifdef TOOLS_ENABLED
+		if (!editor) {
+#endif
+			OS::get_singleton()->print("Error: Can't run project: no main scene defined.\n");
+			goto error;
+#ifdef TOOLS_ENABLED
+		}
+#endif
 	}
 
 	GLOBAL_DEF("logging/file_logging/enable_file_logging", false);
@@ -755,6 +789,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		OS::get_singleton()->add_logger(memnew(RotatedFileLogger(base_path, max_files)));
 	}
 
+#ifdef TOOLS_ENABLED
 	if (editor) {
 		Engine::get_singleton()->set_editor_hint(true);
 		main_args.push_back("--editor");
@@ -762,7 +797,23 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 			init_maximized = true;
 			video_mode.maximized = true;
 		}
+	}
+
+	if (!project_manager) {
+		// Determine if the project manager should be requested
+		project_manager =
+				main_args.size() == 0 &&
+				!ProjectSettings::get_singleton()->has_setting("application/run/main_loop_type") &&
+				(!ProjectSettings::get_singleton()->has_setting("application/run/main_scene") ||
+						String(ProjectSettings::get_singleton()->get("application/run/main_scene")) == "");
+	}
+#endif
+
+	if (editor || project_manager) {
 		use_custom_res = false;
+		input_map->load_default(); //keys for editor
+	} else {
+		input_map->load_from_globals(); //keys for game
 	}
 
 	if (bool(ProjectSettings::get_singleton()->get("application/run/disable_stdout"))) {
@@ -777,18 +828,6 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 	OS::get_singleton()->set_cmdline(execpath, main_args);
 
-#ifdef TOOLS_ENABLED
-
-	if (main_args.size() == 0 && (!ProjectSettings::get_singleton()->has_setting("application/run/main_loop_type")) && (!ProjectSettings::get_singleton()->has_setting("application/run/main_scene") || String(ProjectSettings::get_singleton()->get("application/run/main_scene")) == ""))
-		use_custom_res = false; //project manager (run without arguments)
-
-#endif
-
-	if (editor)
-		input_map->load_default(); //keys for editor
-	else
-		input_map->load_from_globals(); //keys for game
-
 	//if (video_driver == "") // useless for now, so removing
 	//	video_driver = GLOBAL_DEF("display/driver/name", Variant((const char *)OS::get_singleton()->get_video_driver_name(0)));
 
@@ -797,6 +836,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	GLOBAL_DEF("display/window/size/resizable", true);
 	GLOBAL_DEF("display/window/size/borderless", false);
 	GLOBAL_DEF("display/window/size/fullscreen", false);
+	GLOBAL_DEF("display/window/size/always_on_top", false);
 	GLOBAL_DEF("display/window/size/test_width", 0);
 	GLOBAL_DEF("display/window/size/test_height", 0);
 
@@ -819,6 +859,7 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 		video_mode.resizable = GLOBAL_GET("display/window/size/resizable");
 		video_mode.borderless_window = GLOBAL_GET("display/window/size/borderless");
 		video_mode.fullscreen = GLOBAL_GET("display/window/size/fullscreen");
+		video_mode.always_on_top = GLOBAL_GET("display/window/size/always_on_top");
 	}
 
 	if (!force_lowdpi) {
@@ -830,9 +871,11 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 	GLOBAL_DEF("rendering/quality/intended_usage/framebuffer_allocation", 2);
 	GLOBAL_DEF("rendering/quality/intended_usage/framebuffer_allocation.mobile", 3);
 
-	if (editor) {
-		OS::get_singleton()->_allow_hidpi = true; //editors always in hidpi
+	if (editor || project_manager) {
+		// The editor and project manager always detect and use hiDPI if needed
+		OS::get_singleton()->_allow_hidpi = true;
 	}
+
 	Engine::get_singleton()->_pixel_snap = GLOBAL_DEF("rendering/quality/2d/use_pixel_snap", false);
 	OS::get_singleton()->_keep_screen_on = GLOBAL_DEF("display/window/energy_saving/keep_screen_on", true);
 	if (rtm == -1) {
@@ -1022,6 +1065,9 @@ Error Main::setup2(Thread::ID p_main_tid_override) {
 	} else if (init_fullscreen) {
 		OS::get_singleton()->set_window_fullscreen(true);
 	}
+	if (init_always_on_top) {
+		OS::get_singleton()->set_window_always_on_top(true);
+	}
 
 	register_server_types();
 
@@ -1062,7 +1108,7 @@ Error Main::setup2(Thread::ID p_main_tid_override) {
 			MAIN_PRINT("Main: Create bootsplash");
 #if defined(TOOLS_ENABLED) && !defined(NO_EDITOR_SPLASH)
 
-			Ref<Image> splash = editor ? memnew(Image(boot_splash_editor_png)) : memnew(Image(boot_splash_png));
+			Ref<Image> splash = (editor || project_manager) ? memnew(Image(boot_splash_editor_png)) : memnew(Image(boot_splash_png));
 #else
 			Ref<Image> splash = memnew(Image(boot_splash_png));
 #endif
@@ -1088,7 +1134,7 @@ Error Main::setup2(Thread::ID p_main_tid_override) {
 	ProjectSettings::get_singleton()->set_custom_property_info("application/config/icon", PropertyInfo(Variant::STRING, "application/config/icon", PROPERTY_HINT_FILE, "*.png,*.webp"));
 
 	if (bool(GLOBAL_DEF("display/window/handheld/emulate_touchscreen", false))) {
-		if (!OS::get_singleton()->has_touchscreen_ui_hint() && Input::get_singleton() && !editor) {
+		if (!OS::get_singleton()->has_touchscreen_ui_hint() && Input::get_singleton() && !(editor || project_manager)) {
 			//only if no touchscreen ui hint, set emulation
 			InputDefault *id = Object::cast_to<InputDefault>(Input::get_singleton());
 			if (id)
@@ -1176,7 +1222,6 @@ bool Main::start() {
 	ERR_FAIL_COND_V(!_start_success, false);
 
 	bool hasicon = false;
-	bool editor = false;
 	String doc_tool;
 	List<String> removal_docs;
 	bool doc_base = true;
@@ -1185,31 +1230,33 @@ bool Main::start() {
 	String test;
 	String _export_preset;
 	bool export_debug = false;
-	bool project_manager_request = false;
 
 	List<String> args = OS::get_singleton()->get_cmdline_args();
 	for (int i = 0; i < args.size(); i++) {
 		//parameters that do not have an argument to the right
 		if (args[i] == "--no-docbase") {
 			doc_base = false;
+#ifdef TOOLS_ENABLED
 		} else if (args[i] == "-e" || args[i] == "--editor") {
 			editor = true;
 		} else if (args[i] == "-p" || args[i] == "--project-manager") {
-			project_manager_request = true;
+			project_manager = true;
+#endif
 		} else if (args[i].length() && args[i][0] != '-' && game_path == "") {
 			game_path = args[i];
 		}
 		//parameters that have an argument to the right
 		else if (i < (args.size() - 1)) {
 			bool parsed_pair = true;
-			if (args[i] == "--doctool") {
-				doc_tool = args[i + 1];
-				for (int j = i + 2; j < args.size(); j++)
-					removal_docs.push_back(args[j]);
-			} else if (args[i] == "-s" || args[i] == "--script") {
+			if (args[i] == "-s" || args[i] == "--script") {
 				script = args[i + 1];
 			} else if (args[i] == "--test") {
 				test = args[i + 1];
+#ifdef TOOLS_ENABLED
+			} else if (args[i] == "--doctool") {
+				doc_tool = args[i + 1];
+				for (int j = i + 2; j < args.size(); j++)
+					removal_docs.push_back(args[j]);
 			} else if (args[i] == "--export") {
 				editor = true; //needs editor
 				if (i + 1 < args.size()) {
@@ -1227,6 +1274,7 @@ bool Main::start() {
 					return false;
 				}
 				export_debug = true;
+#endif
 			} else {
 				// The parameter does not match anything known, don't skip the next argument
 				parsed_pair = false;
@@ -1407,7 +1455,7 @@ bool Main::start() {
 		{
 		}
 
-		if (!editor) {
+		if (!editor && !project_manager) {
 			//standard helpers that can be changed from main config
 
 			String stretch_mode = GLOBAL_DEF("display/window/stretch/mode", "disabled");
@@ -1473,7 +1521,7 @@ bool Main::start() {
 		}
 
 		String local_game_path;
-		if (game_path != "" && !project_manager_request) {
+		if (game_path != "" && !project_manager) {
 
 			local_game_path = game_path.replace("\\", "/");
 
@@ -1518,7 +1566,7 @@ bool Main::start() {
 #endif
 		}
 
-		if (!project_manager_request && !editor) {
+		if (!project_manager && !editor) { // game
 			if (game_path != "" || script != "") {
 				//autoload
 				List<PropertyInfo> props;
@@ -1600,7 +1648,6 @@ bool Main::start() {
 
 					sml->get_root()->add_child(E->get());
 				}
-				//singletons
 			}
 
 			if (game_path != "") {
@@ -1626,7 +1673,7 @@ bool Main::start() {
 		}
 
 #ifdef TOOLS_ENABLED
-		if (project_manager_request || (script == "" && test == "" && game_path == "" && !editor)) {
+		if (project_manager || (script == "" && test == "" && game_path == "" && !editor)) {
 
 			ProjectManager *pmanager = memnew(ProjectManager);
 			ProgressDialog *progress_dialog = memnew(ProgressDialog);
@@ -1810,7 +1857,16 @@ bool Main::iteration() {
 		target_ticks = MIN(MAX(target_ticks, current_ticks - time_step), current_ticks + time_step);
 	}
 
-	return exit;
+#ifdef TOOLS_ENABLED
+	if (auto_build_solutions) {
+		auto_build_solutions = false;
+		if (!EditorNode::get_singleton()->call_build()) {
+			ERR_FAIL_V(true);
+		}
+	}
+#endif
+
+	return exit || auto_quit;
 }
 
 void Main::force_redraw() {

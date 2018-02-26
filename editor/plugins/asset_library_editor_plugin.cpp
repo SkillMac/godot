@@ -30,11 +30,10 @@
 
 #include "asset_library_editor_plugin.h"
 
+#include "core/io/json.h"
+#include "core/version.h"
 #include "editor_node.h"
 #include "editor_settings.h"
-#include "io/json.h"
-
-#include "version_generated.gen.h"
 
 void EditorAssetLibraryItem::configure(const String &p_title, int p_asset_id, const String &p_category, int p_category_id, const String &p_author, int p_author_id, int p_rating, const String &p_cost) {
 
@@ -308,7 +307,7 @@ EditorAssetLibraryItemDescription::EditorAssetLibraryItemDescription() {
 	preview_hb->set_v_size_flags(SIZE_EXPAND_FILL);
 
 	previews->add_child(preview_hb);
-	get_ok()->set_text(TTR("Install"));
+	get_ok()->set_text(TTR("Download"));
 	get_cancel()->set_text(TTR("Close"));
 }
 ///////////////////////////////////////////////////////////////////////////////////
@@ -316,7 +315,6 @@ EditorAssetLibraryItemDescription::EditorAssetLibraryItemDescription() {
 void EditorAssetLibraryItemDownload::_http_download_completed(int p_status, int p_code, const PoolStringArray &headers, const PoolByteArray &p_data) {
 
 	String error_text;
-	print_line("COMPLETED: " + itos(p_status) + " code: " + itos(p_code) + " data size: " + itos(p_data.size()));
 
 	switch (p_status) {
 
@@ -371,7 +369,6 @@ void EditorAssetLibraryItemDownload::_http_download_completed(int p_status, int 
 	progress->set_max(download->get_body_size());
 	progress->set_value(download->get_downloaded_bytes());
 
-	print_line("max: " + itos(download->get_body_size()) + " bytes: " + itos(download->get_downloaded_bytes()));
 	install->set_disabled(false);
 
 	progress->set_value(download->get_downloaded_bytes());
@@ -747,8 +744,6 @@ void EditorAssetLibrary::_image_request_completed(int p_status, int p_code, cons
 
 	if (p_status == HTTPRequest::RESULT_SUCCESS) {
 
-		print_line("GOT IMAGE YAY!");
-
 		if (p_code != HTTPClient::RESPONSE_NOT_MODIFIED) {
 			for (int i = 0; i < headers.size(); i++) {
 				if (headers[i].findn("ETag:") == 0) { // Save etag
@@ -811,7 +806,6 @@ void EditorAssetLibrary::_update_image_queue() {
 				}
 			}
 
-			print_line("REQUEST ICON FOR: " + itos(E->get().asset_id));
 			Error err = E->get().request->request(E->get().image_url, headers);
 			if (err != OK) {
 				to_delete.push_back(E->key());
@@ -855,7 +849,6 @@ void EditorAssetLibrary::_request_image(ObjectID p_for, String p_image_url, Imag
 
 void EditorAssetLibrary::_repository_changed(int p_repository_id) {
 	host = repository->get_item_metadata(p_repository_id);
-	print_line(".." + host);
 	if (templates_only) {
 		_api_request("configure", REQUESTING_CONFIG, "?type=project");
 	} else {
@@ -883,7 +876,8 @@ void EditorAssetLibrary::_search(int p_page) {
 	}
 	args += String() + "sort=" + sort_key[sort->get_selected()];
 
-	args += "&godot_version=" + itos(VERSION_MAJOR) + "." + itos(VERSION_MINOR);
+	// We use the "branch" version, i.e. major.minor, as patch releases should be compatible
+	args += "&godot_version=" + String(VERSION_BRANCH);
 
 	String support_list;
 	for (int i = 0; i < SUPPORT_MAX; i++) {
@@ -1066,8 +1060,6 @@ void EditorAssetLibrary::_http_request_completed(int p_status, int p_code, const
 		return;
 	}
 
-	print_line("response: " + itos(p_status) + " code: " + itos(p_code));
-
 	Dictionary d;
 	{
 		Variant js;
@@ -1076,8 +1068,6 @@ void EditorAssetLibrary::_http_request_completed(int p_status, int p_code, const
 		JSON::parse(str, js, errs, errl);
 		d = js;
 	}
-
-	print_line(Variant(d).get_construct_string());
 
 	RequestType requested = requesting;
 	requesting = REQUESTING_NONE;

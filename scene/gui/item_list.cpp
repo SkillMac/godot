@@ -517,11 +517,11 @@ void ItemList::_gui_input(const Ref<InputEvent> &p_event) {
 
 					emit_signal("item_rmb_selected", i, get_local_mouse_position());
 				} else {
-					bool selected = !items[i].selected;
+					bool selected = items[i].selected;
 
 					select(i, select_mode == SELECT_SINGLE || !mb->get_command());
 
-					if (selected) {
+					if (!selected || allow_reselect) {
 						if (select_mode == SELECT_SINGLE) {
 							emit_signal("item_selected", i);
 						} else
@@ -961,11 +961,35 @@ void ItemList::_notification(int p_what) {
 		Vector2 base_ofs = bg->get_offset();
 		base_ofs.y -= int(scroll_bar->get_value());
 
-		Rect2 clip(Point2(), size - bg->get_minimum_size() + Vector2(0, scroll_bar->get_value()));
+		const Rect2 clip(-base_ofs, size); // visible frame, don't need to draw outside of there
 
-		for (int i = 0; i < items.size(); i++) {
+		int first_item_visible;
+		{
+			// do a binary search to find the first item whose rect reaches below clip.position.y
+			int lo = 0;
+			int hi = items.size();
+			while (lo < hi) {
+				const int mid = (lo + hi) / 2;
+				const Rect2 &rcache = items[mid].rect_cache;
+				if (rcache.position.y + rcache.size.y < clip.position.y) {
+					lo = mid + 1;
+				} else {
+					hi = mid;
+				}
+			}
+			// we might have ended up with column 2, or 3, ..., so let's find the first column
+			while (lo > 0 && items[lo - 1].rect_cache.position.y == items[lo].rect_cache.position.y) {
+				lo -= 1;
+			}
+			first_item_visible = lo;
+		}
+
+		for (int i = first_item_visible; i < items.size(); i++) {
 
 			Rect2 rcache = items[i].rect_cache;
+
+			if (rcache.position.y > clip.position.y + clip.size.y)
+				break; // done
 
 			if (!clip.intersects(rcache))
 				continue;
@@ -1138,8 +1162,28 @@ void ItemList::_notification(int p_what) {
 			}
 		}
 
-		for (int i = 0; i < separators.size(); i++) {
-			draw_line(Vector2(bg->get_margin(MARGIN_LEFT), base_ofs.y + separators[i]), Vector2(width, base_ofs.y + separators[i]), guide_color);
+		int first_visible_separator = 0;
+		{
+			// do a binary search to find the first separator that is below clip_position.y
+			int lo = 0;
+			int hi = separators.size();
+			while (lo < hi) {
+				const int mid = (lo + hi) / 2;
+				if (separators[mid] < clip.position.y) {
+					lo = mid + 1;
+				} else {
+					hi = mid;
+				}
+			}
+			first_visible_separator = lo;
+		}
+
+		for (int i = first_visible_separator; i < separators.size(); i++) {
+			if (separators[i] > clip.position.y + clip.size.y)
+				break; // done
+
+			const int y = base_ofs.y + separators[i];
+			draw_line(Vector2(bg->get_margin(MARGIN_LEFT), y), Vector2(width, y), guide_color);
 		}
 	}
 }
@@ -1241,12 +1285,23 @@ int ItemList::find_metadata(const Variant &p_metadata) const {
 }
 
 void ItemList::set_allow_rmb_select(bool p_allow) {
+
 	allow_rmb_select = p_allow;
 }
 
 bool ItemList::get_allow_rmb_select() const {
 
 	return allow_rmb_select;
+}
+
+void ItemList::set_allow_reselect(bool p_allow) {
+
+	allow_reselect = p_allow;
+}
+
+bool ItemList::get_allow_reselect() const {
+
+	return allow_reselect;
 }
 
 void ItemList::set_icon_scale(real_t p_scale) {
@@ -1404,6 +1459,9 @@ void ItemList::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_allow_rmb_select", "allow"), &ItemList::set_allow_rmb_select);
 	ClassDB::bind_method(D_METHOD("get_allow_rmb_select"), &ItemList::get_allow_rmb_select);
 
+	ClassDB::bind_method(D_METHOD("set_allow_reselect", "allow"), &ItemList::set_allow_reselect);
+	ClassDB::bind_method(D_METHOD("get_allow_reselect"), &ItemList::get_allow_reselect);
+
 	ClassDB::bind_method(D_METHOD("set_auto_height", "enable"), &ItemList::set_auto_height);
 	ClassDB::bind_method(D_METHOD("has_auto_height"), &ItemList::has_auto_height);
 
@@ -1422,6 +1480,7 @@ void ItemList::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "items", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL), "_set_items", "_get_items");
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "select_mode", PROPERTY_HINT_ENUM, "Single,Multi"), "set_select_mode", "get_select_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "allow_reselect"), "set_allow_reselect", "get_allow_reselect");
 	ADD_PROPERTYNZ(PropertyInfo(Variant::BOOL, "allow_rmb_select"), "set_allow_rmb_select", "get_allow_rmb_select");
 	ADD_PROPERTYNO(PropertyInfo(Variant::INT, "max_text_lines"), "set_max_text_lines", "get_max_text_lines");
 	ADD_PROPERTYNZ(PropertyInfo(Variant::BOOL, "auto_height"), "set_auto_height", "has_auto_height");
@@ -1476,6 +1535,7 @@ ItemList::ItemList() {
 	ensure_selected_visible = false;
 	defer_select_single = -1;
 	allow_rmb_select = false;
+	allow_reselect = false;
 	do_autoscroll_to_bottom = false;
 
 	icon_scale = 1.0f;

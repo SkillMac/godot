@@ -114,8 +114,16 @@ Transform BulletPhysicsDirectBodyState::get_transform() const {
 	return body->get_transform();
 }
 
+void BulletPhysicsDirectBodyState::add_central_force(const Vector3 &p_force) {
+	body->apply_central_force(p_force);
+}
+
 void BulletPhysicsDirectBodyState::add_force(const Vector3 &p_force, const Vector3 &p_pos) {
 	body->apply_force(p_force, p_pos);
+}
+
+void BulletPhysicsDirectBodyState::add_torque(const Vector3 &p_torque) {
+	body->apply_torque(p_torque);
 }
 
 void BulletPhysicsDirectBodyState::apply_impulse(const Vector3 &p_pos, const Vector3 &p_j) {
@@ -832,7 +840,8 @@ void RigidBodyBullet::on_exit_area(AreaBullet *p_area) {
 
 void RigidBodyBullet::reload_space_override_modificator() {
 
-	if (!is_active())
+	// Make sure that kinematic bodies have their total gravity calculated
+	if (!is_active() && PhysicsServer::BODY_MODE_KINEMATIC != mode)
 		return;
 
 	Vector3 newGravity(space->get_gravity_direction() * space->get_gravity_magnitude());

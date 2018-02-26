@@ -67,7 +67,7 @@ class ProjectSettingsEditor : public AcceptDialog {
 	SectionedPropertyEditor *globals_editor;
 
 	HBoxContainer *search_bar;
-	ToolButton *search_button;
+	Button *search_button;
 	LineEdit *search_box;
 	ToolButton *clear_button;
 
@@ -175,6 +175,8 @@ public:
 	static ProjectSettingsEditor *get_singleton() { return singleton; }
 	void popup_project_settings();
 	void set_plugins_page();
+
+	EditorAutoloadSettings *get_autoload_settings() { return autoload_settings; }
 
 	TabContainer *get_tabs();
 

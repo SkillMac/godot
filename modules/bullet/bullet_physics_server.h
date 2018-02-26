@@ -239,7 +239,7 @@ public:
 	virtual void body_set_max_contacts_reported(RID p_body, int p_contacts);
 	virtual int body_get_max_contacts_reported(RID p_body) const;
 
-	virtual void body_set_contacts_reported_depth_threshold(RID p_body, float p_treshold);
+	virtual void body_set_contacts_reported_depth_threshold(RID p_body, float p_threshold);
 	virtual float body_get_contacts_reported_depth_threshold(RID p_body) const;
 
 	virtual void body_set_omit_force_integration(RID p_body, bool p_omit);
@@ -253,7 +253,7 @@ public:
 	// this function only works on physics process, errors and returns null otherwise
 	virtual PhysicsDirectBodyState *body_get_direct_state(RID p_body);
 
-	virtual bool body_test_motion(RID p_body, const Transform &p_from, const Vector3 &p_motion, MotionResult *r_result = NULL);
+	virtual bool body_test_motion(RID p_body, const Transform &p_from, const Vector3 &p_motion, bool p_infinite_inertia, MotionResult *r_result = NULL);
 
 	/* SOFT BODY API */
 
@@ -289,6 +289,9 @@ public:
 
 	virtual void joint_set_solver_priority(RID p_joint, int p_priority);
 	virtual int joint_get_solver_priority(RID p_joint) const;
+
+	virtual void joint_disable_collisions_between_bodies(RID p_joint, const bool p_disable);
+	virtual bool joint_is_disabled_collisions_between_bodies(RID p_joint) const;
 
 	virtual RID joint_create_pin(RID p_body_A, const Vector3 &p_local_A, RID p_body_B, const Vector3 &p_local_B);
 

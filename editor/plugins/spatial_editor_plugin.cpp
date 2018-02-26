@@ -318,6 +318,9 @@ void SpatialEditorViewport::_select(Spatial *p_node, bool p_append, bool p_singl
 		editor_selection->clear();
 		editor_selection->add_node(p_node);
 
+		if (Engine::get_singleton()->is_editor_hint())
+			editor->call("edit_node", p_node);
+
 	} else {
 
 		if (editor_selection->is_selected(p_node) && p_single) {
@@ -4279,67 +4282,26 @@ void SpatialEditor::_init_indicators() {
 		indicator_mat->set_flag(SpatialMaterial::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
 		indicator_mat->set_flag(SpatialMaterial::FLAG_SRGB_VERTEX_COLOR, true);
 
-		PoolVector<Color> grid_colors[3];
-		PoolVector<Vector3> grid_points[3];
 		Vector<Color> origin_colors;
 		Vector<Vector3> origin_points;
-
-		Color grid_color = EditorSettings::get_singleton()->get("editors/3d/grid_color");
 
 		for (int i = 0; i < 3; i++) {
 			Vector3 axis;
 			axis[i] = 1;
-			Vector3 axis_n1;
-			axis_n1[(i + 1) % 3] = 1;
-			Vector3 axis_n2;
-			axis_n2[(i + 2) % 3] = 1;
+
+			grid_enable[i] = false;
+			grid_visible[i] = false;
 
 			origin_colors.push_back(Color(axis.x, axis.y, axis.z));
 			origin_colors.push_back(Color(axis.x, axis.y, axis.z));
 			origin_points.push_back(axis * 4096);
 			origin_points.push_back(axis * -4096);
-#define ORIGIN_GRID_SIZE 50
-
-			for (int j = -ORIGIN_GRID_SIZE; j <= ORIGIN_GRID_SIZE; j++) {
-
-				Vector3 p1 = axis_n1 * j + axis_n2 * -ORIGIN_GRID_SIZE;
-				Vector3 p1_dest = p1 * (-axis_n2 + axis_n1);
-				Vector3 p2 = axis_n2 * j + axis_n1 * -ORIGIN_GRID_SIZE;
-				Vector3 p2_dest = p2 * (-axis_n1 + axis_n2);
-
-				Color line_color = grid_color;
-				if (j == 0) {
-					continue;
-				} else if (j % 10 == 0) {
-					line_color *= 1.5;
-				}
-
-				grid_points[i].push_back(p1);
-				grid_points[i].push_back(p1_dest);
-				grid_colors[i].push_back(line_color);
-				grid_colors[i].push_back(line_color);
-
-				grid_points[i].push_back(p2);
-				grid_points[i].push_back(p2_dest);
-				grid_colors[i].push_back(line_color);
-				grid_colors[i].push_back(line_color);
-			}
-
-			grid[i] = VisualServer::get_singleton()->mesh_create();
-			Array d;
-			d.resize(VS::ARRAY_MAX);
-			d[VisualServer::ARRAY_VERTEX] = grid_points[i];
-			d[VisualServer::ARRAY_COLOR] = grid_colors[i];
-			VisualServer::get_singleton()->mesh_add_surface_from_arrays(grid[i], VisualServer::PRIMITIVE_LINES, d);
-			VisualServer::get_singleton()->mesh_surface_set_material(grid[i], 0, indicator_mat->get_rid());
-			grid_instance[i] = VisualServer::get_singleton()->instance_create2(grid[i], get_tree()->get_root()->get_world()->get_scenario());
-
-			grid_visible[i] = false;
-			grid_enable[i] = false;
-			VisualServer::get_singleton()->instance_set_visible(grid_instance[i], false);
-			VisualServer::get_singleton()->instance_geometry_set_cast_shadows_setting(grid_instance[i], VS::SHADOW_CASTING_SETTING_OFF);
-			VS::get_singleton()->instance_set_layer_mask(grid_instance[i], 1 << SpatialEditorViewport::GIZMO_GRID_LAYER);
 		}
+
+		grid_enable[1] = true;
+		grid_visible[1] = true;
+
+		_init_grid();
 
 		origin = VisualServer::get_singleton()->mesh_create();
 		Array d;
@@ -4355,9 +4317,6 @@ void SpatialEditor::_init_indicators() {
 
 		VisualServer::get_singleton()->instance_geometry_set_cast_shadows_setting(origin_instance, VS::SHADOW_CASTING_SETTING_OFF);
 
-		VisualServer::get_singleton()->instance_set_visible(grid_instance[1], true);
-		grid_enable[1] = true;
-		grid_visible[1] = true;
 		grid_enabled = true;
 		last_grid_snap = 1;
 	}
@@ -4626,10 +4585,71 @@ void SpatialEditor::_init_indicators() {
 	_generate_selection_box();
 }
 
+void SpatialEditor::_init_grid() {
+
+	PoolVector<Color> grid_colors[3];
+	PoolVector<Vector3> grid_points[3];
+
+	Color grid_color = EditorSettings::get_singleton()->get("editors/3d/grid_color");
+
+	for (int i = 0; i < 3; i++) {
+		Vector3 axis;
+		axis[i] = 1;
+		Vector3 axis_n1;
+		axis_n1[(i + 1) % 3] = 1;
+		Vector3 axis_n2;
+		axis_n2[(i + 2) % 3] = 1;
+
+#define ORIGIN_GRID_SIZE 50
+
+		for (int j = -ORIGIN_GRID_SIZE; j <= ORIGIN_GRID_SIZE; j++) {
+			Vector3 p1 = axis_n1 * j + axis_n2 * -ORIGIN_GRID_SIZE;
+			Vector3 p1_dest = p1 * (-axis_n2 + axis_n1);
+			Vector3 p2 = axis_n2 * j + axis_n1 * -ORIGIN_GRID_SIZE;
+			Vector3 p2_dest = p2 * (-axis_n1 + axis_n2);
+
+			Color line_color = grid_color;
+			if (j == 0) {
+				continue;
+			} else if (j % 10 == 0) {
+				line_color *= 1.5;
+			}
+
+			grid_points[i].push_back(p1);
+			grid_points[i].push_back(p1_dest);
+			grid_colors[i].push_back(line_color);
+			grid_colors[i].push_back(line_color);
+
+			grid_points[i].push_back(p2);
+			grid_points[i].push_back(p2_dest);
+			grid_colors[i].push_back(line_color);
+			grid_colors[i].push_back(line_color);
+		}
+
+		grid[i] = VisualServer::get_singleton()->mesh_create();
+		Array d;
+		d.resize(VS::ARRAY_MAX);
+		d[VisualServer::ARRAY_VERTEX] = grid_points[i];
+		d[VisualServer::ARRAY_COLOR] = grid_colors[i];
+		VisualServer::get_singleton()->mesh_add_surface_from_arrays(grid[i], VisualServer::PRIMITIVE_LINES, d);
+		VisualServer::get_singleton()->mesh_surface_set_material(grid[i], 0, indicator_mat->get_rid());
+		grid_instance[i] = VisualServer::get_singleton()->instance_create2(grid[i], get_tree()->get_root()->get_world()->get_scenario());
+
+		VisualServer::get_singleton()->instance_set_visible(grid_instance[i], grid_visible[i]);
+		VisualServer::get_singleton()->instance_geometry_set_cast_shadows_setting(grid_instance[i], VS::SHADOW_CASTING_SETTING_OFF);
+		VS::get_singleton()->instance_set_layer_mask(grid_instance[i], 1 << SpatialEditorViewport::GIZMO_GRID_LAYER);
+	}
+}
+
 void SpatialEditor::_finish_indicators() {
 
 	VisualServer::get_singleton()->free(origin_instance);
 	VisualServer::get_singleton()->free(origin);
+
+	_finish_grid();
+}
+
+void SpatialEditor::_finish_grid() {
 	for (int i = 0; i < 3; i++) {
 		VisualServer::get_singleton()->free(grid_instance[i]);
 		VisualServer::get_singleton()->free(grid[i]);
@@ -4670,6 +4690,8 @@ void SpatialEditor::_unhandled_key_input(Ref<InputEvent> p_event) {
 
 	if (!is_visible_in_tree() || get_viewport()->gui_has_modal_stack())
 		return;
+
+	snap_key_enabled = Input::get_singleton()->is_key_pressed(KEY_CONTROL);
 
 	Ref<InputEventKey> k = p_event;
 
@@ -4767,12 +4789,21 @@ void SpatialEditor::_notification(int p_what) {
 		view_menu->get_popup()->set_item_icon(view_menu->get_popup()->get_item_index(MENU_VIEW_USE_3_VIEWPORTS), get_icon("Panels3", "EditorIcons"));
 		view_menu->get_popup()->set_item_icon(view_menu->get_popup()->get_item_index(MENU_VIEW_USE_3_VIEWPORTS_ALT), get_icon("Panels3Alt", "EditorIcons"));
 		view_menu->get_popup()->set_item_icon(view_menu->get_popup()->get_item_index(MENU_VIEW_USE_4_VIEWPORTS), get_icon("Panels4", "EditorIcons"));
+
+		// Update grid color by rebuilding grid.
+		_finish_grid();
+		_init_grid();
 	}
 }
 
 void SpatialEditor::add_control_to_menu_panel(Control *p_control) {
 
 	hbc_menu->add_child(p_control);
+}
+
+void SpatialEditor::remove_control_from_menu_panel(Control *p_control) {
+
+	hbc_menu->remove_child(p_control);
 }
 
 void SpatialEditor::set_can_preview(Camera *p_preview) {
@@ -4933,6 +4964,7 @@ SpatialEditor::SpatialEditor(EditorNode *p_editor) {
 	editor_selection->add_editor_plugin(this);
 
 	snap_enabled = false;
+	snap_key_enabled = false;
 	tool_mode = TOOL_MODE_SELECT;
 
 	hbc_menu = memnew(HBoxContainer);

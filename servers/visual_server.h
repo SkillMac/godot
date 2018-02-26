@@ -785,6 +785,10 @@ public:
 	virtual Vector<ObjectID> instances_cull_ray(const Vector3 &p_from, const Vector3 &p_to, RID p_scenario = RID()) const = 0;
 	virtual Vector<ObjectID> instances_cull_convex(const Vector<Plane> &p_convex, RID p_scenario = RID()) const = 0;
 
+	Array _instances_cull_aabb_bind(const AABB &p_aabb, RID p_scenario = RID()) const;
+	Array _instances_cull_ray_bind(const Vector3 &p_from, const Vector3 &p_to, RID p_scenario = RID()) const;
+	Array _instances_cull_convex_bind(const Array &p_convex, RID p_scenario = RID()) const;
+
 	enum InstanceFlags {
 		INSTANCE_FLAG_USE_BAKED_LIGHT,
 		INSTANCE_FLAG_MAX
@@ -842,8 +846,8 @@ public:
 	virtual void canvas_item_add_primitive(RID p_item, const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs, RID p_texture, float p_width = 1.0, RID p_normal_map = RID()) = 0;
 	virtual void canvas_item_add_polygon(RID p_item, const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs = Vector<Point2>(), RID p_texture = RID(), RID p_normal_map = RID(), bool p_antialiased = false) = 0;
 	virtual void canvas_item_add_triangle_array(RID p_item, const Vector<int> &p_indices, const Vector<Point2> &p_points, const Vector<Color> &p_colors, const Vector<Point2> &p_uvs = Vector<Point2>(), RID p_texture = RID(), int p_count = -1, RID p_normal_map = RID()) = 0;
-	virtual void canvas_item_add_mesh(RID p_item, const RID &p_mesh, RID p_skeleton = RID()) = 0;
-	virtual void canvas_item_add_multimesh(RID p_item, RID p_mesh, RID p_skeleton = RID()) = 0;
+	virtual void canvas_item_add_mesh(RID p_item, const RID &p_mesh, RID p_texture = RID(), RID p_normal_map = RID()) = 0;
+	virtual void canvas_item_add_multimesh(RID p_item, RID p_mesh, RID p_texture = RID(), RID p_normal_map = RID()) = 0;
 	virtual void canvas_item_add_particles(RID p_item, RID p_particles, RID p_texture, RID p_normal_map, int p_h_frames, int p_v_frames) = 0;
 	virtual void canvas_item_add_set_transform(RID p_item, const Transform2D &p_transform) = 0;
 	virtual void canvas_item_add_clip_ignore(RID p_item, bool p_ignore) = 0;
@@ -851,6 +855,8 @@ public:
 	virtual void canvas_item_set_z_index(RID p_item, int p_z) = 0;
 	virtual void canvas_item_set_z_as_relative_to_parent(RID p_item, bool p_enable) = 0;
 	virtual void canvas_item_set_copy_to_backbuffer(RID p_item, bool p_enable, const Rect2 &p_rect) = 0;
+
+	virtual void canvas_item_attach_skeleton(RID p_item, RID p_skeleton) = 0;
 
 	virtual void canvas_item_clear(RID p_item) = 0;
 	virtual void canvas_item_set_draw_index(RID p_item, int p_index) = 0;
@@ -1012,6 +1018,22 @@ VARIANT_ENUM_CAST(VisualServer::CanvasLightShadowFilter);
 VARIANT_ENUM_CAST(VisualServer::CanvasOccluderPolygonCullMode);
 VARIANT_ENUM_CAST(VisualServer::RenderInfo);
 VARIANT_ENUM_CAST(VisualServer::Features);
+VARIANT_ENUM_CAST(VisualServer::MultimeshTransformFormat);
+VARIANT_ENUM_CAST(VisualServer::MultimeshColorFormat);
+VARIANT_ENUM_CAST(VisualServer::LightOmniShadowMode);
+VARIANT_ENUM_CAST(VisualServer::LightOmniShadowDetail);
+VARIANT_ENUM_CAST(VisualServer::LightDirectionalShadowMode);
+VARIANT_ENUM_CAST(VisualServer::LightDirectionalShadowDepthRangeMode);
+VARIANT_ENUM_CAST(VisualServer::ReflectionProbeUpdateMode);
+VARIANT_ENUM_CAST(VisualServer::ParticlesDrawOrder);
+VARIANT_ENUM_CAST(VisualServer::EnvironmentBG);
+VARIANT_ENUM_CAST(VisualServer::EnvironmentDOFBlurQuality);
+VARIANT_ENUM_CAST(VisualServer::EnvironmentGlowBlendMode);
+VARIANT_ENUM_CAST(VisualServer::EnvironmentToneMapper);
+VARIANT_ENUM_CAST(VisualServer::EnvironmentSSAOQuality);
+VARIANT_ENUM_CAST(VisualServer::EnvironmentSSAOBlur);
+VARIANT_ENUM_CAST(VisualServer::InstanceFlags);
+VARIANT_ENUM_CAST(VisualServer::ShadowCastingSetting);
 
 //typedef VisualServer VS; // makes it easier to use
 #define VS VisualServer

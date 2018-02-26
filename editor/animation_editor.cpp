@@ -1157,7 +1157,7 @@ void AnimationKeyEditor::_track_editor_draw() {
 	Ref<Texture> type_hover = get_icon("KeyHover", "EditorIcons");
 	Ref<Texture> type_selected = get_icon("KeySelected", "EditorIcons");
 
-	int right_separator_ofs = down_icon->get_width() * 3 + add_key_icon->get_width() + interp_icon[0]->get_width() + wrap_icon[0]->get_width() + cont_icon[0]->get_width() + hsep * 9;
+	int right_separator_ofs = right_data_size_cache;
 
 	int h = font->get_height() + sep;
 
@@ -1359,7 +1359,7 @@ void AnimationKeyEditor::_track_editor_draw() {
 		Color ncol = color;
 		if (n && editor_selection->is_selected(n))
 			ncol = track_select_color;
-		te->draw_string(font, Point2(ofs + Point2(left_check_ofs + sep + type_icon[0]->get_width() + sep, y + font->get_ascent() + (sep / 2))).floor(), np, ncol, name_limit - (type_icon[0]->get_width() + sep) - 5);
+		te->draw_string(font, Point2(ofs + Point2(left_check_ofs + sep + type_icon[0]->get_width() + sep, y + font->get_ascent() + (sep / 2))).floor(), np, ncol, name_limit - (left_check_ofs + sep) - (type_icon[0]->get_width() + sep) - 5);
 
 		// Draw separator line below track area
 		if (!obj)
@@ -1830,7 +1830,7 @@ void AnimationKeyEditor::_track_editor_gui_input(const Ref<InputEvent> &p_input)
 		get_icon("KeyXform", "EditorIcons"),
 		get_icon("KeyCall", "EditorIcons")
 	};
-	int right_separator_ofs = down_icon->get_width() * 3 + add_key_icon->get_width() + interp_icon[0]->get_width() + wrap_icon[0]->get_width() + cont_icon[0]->get_width() + hsep * 9;
+	int right_separator_ofs = right_data_size_cache;
 
 	int h = font->get_height() + sep;
 
@@ -3042,7 +3042,7 @@ void AnimationKeyEditor::_notification(int p_what) {
 					get_icon("InterpWrapClamp", "EditorIcons"),
 					get_icon("InterpWrapLoop", "EditorIcons"),
 				};
-				right_data_size_cache = down_icon->get_width() * 3 + add_key_icon->get_width() + interp_icon[0]->get_width() + cont_icon[0]->get_width() + wrap_icon[0]->get_width() + hsep * 8;
+				right_data_size_cache = down_icon->get_width() * 3 + add_key_icon->get_width() + interp_icon[0]->get_width() + cont_icon[0]->get_width() + wrap_icon[0]->get_width() + hsep * 9;
 			}
 		} break;
 	}
@@ -3362,7 +3362,7 @@ int AnimationKeyEditor::_confirm_insert(InsertData p_id, int p_last_track) {
 			//wants a new tack
 
 			{
-				//shitty hack
+				//hack
 				NodePath np;
 				animation->add_track(p_id.type);
 				animation->track_set_path(animation->get_track_count() - 1, p_id.path);

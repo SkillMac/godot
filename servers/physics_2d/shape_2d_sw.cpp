@@ -184,13 +184,18 @@ real_t RayShape2DSW::get_moment_of_inertia(real_t p_mass, const Size2 &p_scale) 
 
 void RayShape2DSW::set_data(const Variant &p_data) {
 
-	length = p_data;
+	Dictionary d = p_data;
+	length = d["length"];
+	slips_on_slope = d["slips_on_slope"];
 	configure(Rect2(0, 0, 0.001, length));
 }
 
 Variant RayShape2DSW::get_data() const {
 
-	return length;
+	Dictionary d;
+	d["length"] = length;
+	d["slips_on_slope"] = slips_on_slope;
+	return d;
 }
 
 /*********************************************************/
@@ -589,7 +594,7 @@ bool ConvexPolygonShape2DSW::intersect_segment(const Vector2 &p_begin, const Vec
 
 	for (int i = 0; i < point_count; i++) {
 
-		//hmm crap.. no can do..
+		//hmm.. no can do..
 		/*
 		if (d.dot(points[i].normal)>=0)
 			continue;

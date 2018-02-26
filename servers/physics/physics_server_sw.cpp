@@ -902,7 +902,7 @@ bool PhysicsServerSW::body_is_ray_pickable(RID p_body) const {
 	return body->is_ray_pickable();
 }
 
-bool PhysicsServerSW::body_test_motion(RID p_body, const Transform &p_from, const Vector3 &p_motion, MotionResult *r_result) {
+bool PhysicsServerSW::body_test_motion(RID p_body, const Transform &p_from, const Vector3 &p_motion, bool p_infinite_inertia, MotionResult *r_result) {
 
 	BodySW *body = body_owner.get(p_body);
 	ERR_FAIL_COND_V(!body, false);
@@ -911,7 +911,7 @@ bool PhysicsServerSW::body_test_motion(RID p_body, const Transform &p_from, cons
 
 	_update_shapes();
 
-	return body->get_space()->test_body_motion(body, p_from, p_motion, body->get_kinematic_margin(), r_result);
+	return body->get_space()->test_body_motion(body, p_from, p_motion, p_infinite_inertia, body->get_kinematic_margin(), r_result);
 }
 
 PhysicsDirectBodyState *PhysicsServerSW::body_get_direct_state(RID p_body) {
@@ -1091,6 +1091,33 @@ int PhysicsServerSW::joint_get_solver_priority(RID p_joint) const {
 	JointSW *joint = joint_owner.get(p_joint);
 	ERR_FAIL_COND_V(!joint, 0);
 	return joint->get_priority();
+}
+
+void PhysicsServerSW::joint_disable_collisions_between_bodies(RID p_joint, const bool p_disable) {
+	JointSW *joint = joint_owner.get(p_joint);
+	ERR_FAIL_COND(!joint);
+
+	joint->disable_collisions_between_bodies(p_disable);
+
+	if (2 == joint->get_body_count()) {
+		BodySW *body_a = *joint->get_body_ptr();
+		BodySW *body_b = *(joint->get_body_ptr() + 1);
+
+		if (p_disable) {
+			body_add_collision_exception(body_a->get_self(), body_b->get_self());
+			body_add_collision_exception(body_b->get_self(), body_a->get_self());
+		} else {
+			body_remove_collision_exception(body_a->get_self(), body_b->get_self());
+			body_remove_collision_exception(body_b->get_self(), body_a->get_self());
+		}
+	}
+}
+
+bool PhysicsServerSW::joint_is_disabled_collisions_between_bodies(RID p_joint) const {
+	JointSW *joint = joint_owner.get(p_joint);
+	ERR_FAIL_COND_V(!joint, true);
+
+	return joint->is_disabled_collisions_between_bodies();
 }
 
 PhysicsServerSW::JointType PhysicsServerSW::joint_get_type(RID p_joint) const {

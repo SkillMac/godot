@@ -101,7 +101,7 @@ StyleBox::StyleBox() {
 	}
 }
 
-void StyleBoxTexture::set_texture(RES p_texture) {
+void StyleBoxTexture::set_texture(Ref<Texture> p_texture) {
 
 	if (texture == p_texture)
 		return;
@@ -112,12 +112,12 @@ void StyleBoxTexture::set_texture(RES p_texture) {
 	_change_notify("texture");
 }
 
-RES StyleBoxTexture::get_texture() const {
+Ref<Texture> StyleBoxTexture::get_texture() const {
 
 	return texture;
 }
 
-void StyleBoxTexture::set_normal_map(RES p_normal_map) {
+void StyleBoxTexture::set_normal_map(Ref<Texture> p_normal_map) {
 
 	if (normal_map == p_normal_map)
 		return;
@@ -125,7 +125,7 @@ void StyleBoxTexture::set_normal_map(RES p_normal_map) {
 	emit_changed();
 }
 
-RES StyleBoxTexture::get_normal_map() const {
+Ref<Texture> StyleBoxTexture::get_normal_map() const {
 
 	return normal_map;
 }
@@ -650,14 +650,14 @@ void StyleBoxFlat::draw(RID p_canvas_item, const Rect2 &p_rect) const {
 		style_rect = style_rect.grow(-((aa_size + 1) / 2));
 	}
 
-	//adapt borders (prevent weired overlapping/glitchy drawings)
+	//adapt borders (prevent weird overlapping/glitchy drawings)
 	int width = MAX(style_rect.size.width, 0);
 	int height = MAX(style_rect.size.height, 0);
 	int adapted_border[4] = { INT_MAX, INT_MAX, INT_MAX, INT_MAX };
 	adapt_values(MARGIN_TOP, MARGIN_BOTTOM, adapted_border, border_width, height, height, height);
 	adapt_values(MARGIN_LEFT, MARGIN_RIGHT, adapted_border, border_width, width, width, width);
 
-	//adapt corners (prevent weired overlapping/glitchy drawings)
+	//adapt corners (prevent weird overlapping/glitchy drawings)
 	int adapted_corner[4] = { INT_MAX, INT_MAX, INT_MAX, INT_MAX };
 	adapt_values(CORNER_TOP_RIGHT, CORNER_BOTTOM_RIGHT, adapted_corner, corner_radius, height, height - adapted_border[MARGIN_BOTTOM], height - adapted_border[MARGIN_TOP]);
 	adapt_values(CORNER_TOP_LEFT, CORNER_BOTTOM_LEFT, adapted_corner, corner_radius, height, height - adapted_border[MARGIN_BOTTOM], height - adapted_border[MARGIN_TOP]);
